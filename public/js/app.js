@@ -101,6 +101,10 @@ const App = (() => {
   function setApiKey(key)     { localStorage.setItem('fc_api_key', key.trim()); }
   function clearApiKey()      { localStorage.removeItem('fc_api_key'); }
 
+  /* ── Confidence threshold ── */
+  function getConfidenceThreshold() { return localStorage.getItem('fc_confidence_threshold') || 'Medium'; }
+  function setConfidenceThreshold(val) { localStorage.setItem('fc_confidence_threshold', val); }
+
   /* ── Tab routing ── */
   let _currentTab = 'plant-id';
   const _tabModules = {};
@@ -158,7 +162,13 @@ const App = (() => {
     const ctx = getPropertyCtx();
     document.getElementById('settings-version').textContent = ctx.owner
       ? `${ctx.owner} · ${ctx.location} (${ctx.zip})`
-      : 'Field Companion v1.0';
+      : 'Field Companion v2.0';
+
+    const threshold = getConfidenceThreshold();
+    ['High', 'Medium', 'Any'].forEach(val => {
+      const pill = document.getElementById('conf-pill-' + val.toLowerCase());
+      if (pill) pill.classList.toggle('selected', threshold === val);
+    });
   }
 
   function setupSettings() {
@@ -188,6 +198,16 @@ const App = (() => {
         renderSettings();
         toast('API key removed');
       }
+    });
+
+    ['High', 'Medium', 'Any'].forEach(val => {
+      const pill = document.getElementById('conf-pill-' + val.toLowerCase());
+      if (!pill) return;
+      pill.addEventListener('click', () => {
+        setConfidenceThreshold(val);
+        renderSettings();
+        toast('Confidence threshold updated');
+      });
     });
   }
 
@@ -276,6 +296,10 @@ const App = (() => {
     try { registerSW(); }
     catch (e) { console.error('Field Companion: registerSW failed:', e); }
 
+    if (window.MapPicker) {
+      try { MapPicker.init(); } catch(e) { console.error('Field Companion: MapPicker init failed:', e); }
+    }
+
     const mods = [
       ['PlantID', window.PlantID],
       ['Logger',  window.Logger],
@@ -301,6 +325,7 @@ const App = (() => {
     getDB, saveObservation, getAllObservations, getObservationsByZone, deleteObservation,
     getZones, getZone, getTasks, getDriveLinks, getPropertyCtx,
     getApiKey, setApiKey,
+    getConfidenceThreshold, setConfidenceThreshold,
     registerTab, switchTab,
     toast,
     todayISO, formatDate,

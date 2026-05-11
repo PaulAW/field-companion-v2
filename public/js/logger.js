@@ -64,7 +64,12 @@ var Logger = (() => {
     $('log-date').value = App.todayISO();
     $('log-zone').value = '';
     $('log-gps-status').textContent = '';
+    $('log-gps-status').className = 'gps-status';
     _gpsCoords = null;
+    const fallback = $('log-gps-fallback');
+    if (fallback) fallback.style.display = 'none';
+    const refine = $('log-gps-refine');
+    if (refine) refine.style.display = 'none';
     ['log-location-desc','log-common-name','log-latin-name','log-action-needed','log-notes']
       .forEach(id => { if ($(id)) $(id).value = ''; });
     ['log-native-status','log-keystone','log-obs-type'].forEach(id => {
@@ -75,24 +80,59 @@ var Logger = (() => {
   /* ── GPS ── */
   function setupGPS() {
     const btn = $('log-gps-btn');
-    if (!btn) return;
-    btn.addEventListener('click', () => {
-      const status = $('log-gps-status');
-      status.textContent = '📍 Locating...';
-      status.className = 'gps-status';
-      if (!navigator.geolocation) {
-        status.textContent = 'GPS not available'; status.className = 'gps-error'; return;
-      }
-      navigator.geolocation.getCurrentPosition(
-        pos => {
-          _gpsCoords = { lat: pos.coords.latitude.toFixed(6), lng: pos.coords.longitude.toFixed(6) };
-          status.textContent = `✓ ${_gpsCoords.lat}, ${_gpsCoords.lng}`;
-          status.className = 'gps-status';
-        },
-        () => { _gpsCoords = null; status.textContent = 'GPS unavailable'; status.className = 'gps-error'; },
-        { enableHighAccuracy: true, timeout: 10000 }
-      );
-    });
+    if (btn) btn.addEventListener('click', captureGPS);
+
+    const pickBtn   = $('log-pick-on-map');
+    if (pickBtn) pickBtn.addEventListener('click', openMapPicker);
+
+    const refineLink = $('log-refine-map');
+    if (refineLink) refineLink.addEventListener('click', openMapPicker);
+  }
+
+  function openMapPicker() {
+    if (window.MapPicker) {
+      const ctx = App.getPropertyCtx();
+      const center = ctx.map_center || {};
+      MapPicker.open({
+        lat: _gpsCoords ? _gpsCoords.lat : (center.lat || 41.0686),
+        lng: _gpsCoords ? _gpsCoords.lng : (center.lng || -91.9694),
+        onSelect: coords => setGPSCoords(coords),
+      });
+    }
+  }
+
+  function setGPSCoords(coords) {
+    _gpsCoords = coords;
+    const status = $('log-gps-status');
+    if (status) { status.textContent = `✓ ${coords.lat}, ${coords.lng}`; status.className = 'gps-status'; }
+    const fallback = $('log-gps-fallback');
+    if (fallback) fallback.style.display = 'none';
+    const refine = $('log-gps-refine');
+    if (refine) refine.style.display = 'block';
+  }
+
+  function captureGPS() {
+    const status   = $('log-gps-status');
+    const fallback = $('log-gps-fallback');
+    const refine   = $('log-gps-refine');
+    if (status)   { status.textContent = '📍 Locating...'; status.className = 'gps-status'; }
+    if (fallback) fallback.style.display = 'none';
+    if (refine)   refine.style.display   = 'none';
+
+    if (!navigator.geolocation) {
+      if (status)   { status.textContent = 'GPS not available'; status.className = 'gps-error'; }
+      if (fallback) fallback.style.display = 'block';
+      return;
+    }
+    navigator.geolocation.getCurrentPosition(
+      pos => setGPSCoords({ lat: pos.coords.latitude.toFixed(6), lng: pos.coords.longitude.toFixed(6) }),
+      () => {
+        _gpsCoords = null;
+        if (status)   { status.textContent = 'GPS unavailable'; status.className = 'gps-error'; }
+        if (fallback) fallback.style.display = 'block';
+      },
+      { enableHighAccuracy: true, timeout: 10000 }
+    );
   }
 
   /* ── Save ── */

@@ -13,6 +13,7 @@
   <link rel="icon" type="image/png" href="icons/icon-192.png">
   <link rel="manifest" href="manifest.json">
   <link rel="stylesheet" href="css/style.css">
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
 </head>
 <body>
 
@@ -67,8 +68,15 @@
             <label>GPS</label>
             <div class="gps-row">
               <button class="btn btn-outline btn-sm" id="pid-gps-btn" type="button">📍 Get</button>
+              <span id="pid-gps-status" class="gps-status" style="font-size:11px"></span>
             </div>
-            <div id="pid-gps-status" class="gps-status" style="margin-top:4px;font-size:11px"></div>
+            <div id="pid-gps-fallback" style="display:none;margin-top:5px">
+              <button class="btn btn-sm btn-amber" id="pid-pick-on-map" type="button">🗺️ Pick on map</button>
+              <span style="font-size:10px;color:var(--muted);margin-left:6px">or skip coordinates</span>
+            </div>
+            <div id="pid-gps-refine" style="display:none;margin-top:4px;font-size:10px;color:var(--muted)">
+              GPS captured · <a id="pid-refine-map" style="color:var(--green);cursor:pointer;font-weight:600">Refine on map →</a>
+            </div>
           </div>
         </div>
 
@@ -131,7 +139,14 @@
             <label>GPS</label>
             <div class="gps-row">
               <button class="btn btn-outline btn-sm" id="log-gps-btn" type="button">📍 Capture</button>
-              <span id="log-gps-status" style="font-size:11px"></span>
+              <span id="log-gps-status" class="gps-status" style="font-size:11px"></span>
+            </div>
+            <div id="log-gps-fallback" style="display:none;margin-top:5px">
+              <button class="btn btn-sm btn-amber" id="log-pick-on-map" type="button">🗺️ Pick on map</button>
+              <span style="font-size:10px;color:var(--muted);margin-left:6px">or skip coordinates</span>
+            </div>
+            <div id="log-gps-refine" style="display:none;margin-top:4px;font-size:10px;color:var(--muted)">
+              GPS captured · <a id="log-refine-map" style="color:var(--green);cursor:pointer;font-weight:600">Refine on map →</a>
             </div>
           </div>
 
@@ -288,6 +303,17 @@
       <button id="settings-close">✕</button>
     </div>
 
+    <!-- Confidence threshold -->
+    <div class="card">
+      <div class="card-title">Plant ID confidence threshold</div>
+      <div style="font-size:11px;color:var(--label);margin-bottom:10px;line-height:1.5">Below this level, the app asks for a second photo before saving.</div>
+      <div class="confidence-pills">
+        <div class="conf-pill" id="conf-pill-high">High<br><span style="font-size:9px">only</span></div>
+        <div class="conf-pill selected" id="conf-pill-medium">Medium<br><span style="font-size:9px">or above</span></div>
+        <div class="conf-pill" id="conf-pill-any">Any<br><span style="font-size:9px">result</span></div>
+      </div>
+    </div>
+
     <!-- API key -->
     <div class="card">
       <div class="card-title">Anthropic API key</div>
@@ -332,7 +358,36 @@
 </div><!-- /settings-panel -->
 
 
+<!-- ════ MAP PICKER MODAL ════ -->
+<div id="map-picker-modal" style="display:none;position:fixed;inset:0;z-index:200;flex-direction:column;">
+  <div style="background:var(--green);color:#e8f4eb;padding:10px 14px;display:flex;align-items:center;justify-content:space-between;flex-shrink:0">
+    <div>
+      <strong style="font-size:14px;font-weight:600">🗺️ Pick location</strong>
+      <div style="font-size:10px;color:#a8c8ad;margin-top:1px">Pan to your spot, then tap Use</div>
+    </div>
+    <button id="map-picker-cancel" style="background:none;border:none;color:#a8c8ad;font-size:14px;cursor:pointer;padding:4px 8px">✕ Cancel</button>
+  </div>
+  <div style="position:relative;flex:1;overflow:hidden">
+    <div id="map-picker-map" style="width:100%;height:100%;"></div>
+    <!-- Crosshair -->
+    <div style="position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);pointer-events:none;z-index:500">
+      <div style="position:relative;width:0;height:0">
+        <div style="width:24px;height:2px;background:rgba(255,255,255,.9);position:absolute;top:-1px;left:-12px;box-shadow:0 0 3px rgba(0,0,0,.5)"></div>
+        <div style="width:2px;height:24px;background:rgba(255,255,255,.9);position:absolute;top:-12px;left:-1px;box-shadow:0 0 3px rgba(0,0,0,.5)"></div>
+        <div style="width:14px;height:14px;border:2px solid rgba(255,255,255,.9);border-radius:50%;position:absolute;top:-7px;left:-7px"></div>
+      </div>
+    </div>
+    <!-- Coordinates display -->
+    <div id="map-picker-coords" style="position:absolute;bottom:62px;left:50%;transform:translateX(-50%);background:rgba(255,255,255,.95);border-radius:8px;padding:5px 12px;font-size:11px;font-weight:600;white-space:nowrap;box-shadow:0 2px 8px rgba(0,0,0,.25);z-index:500;color:var(--text)">—</div>
+  </div>
+  <div style="padding:10px 14px 14px;background:var(--cream);flex-shrink:0">
+    <button id="map-picker-use" class="btn" style="width:100%">✓ Use this location</button>
+  </div>
+</div>
+
 <!-- ── Scripts ── -->
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script src="js/map-picker.js"></script>
 <script src="js/app.js"></script>
 <script src="js/plant-id.js"></script>
 <script src="js/logger.js"></script>
