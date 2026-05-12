@@ -149,6 +149,10 @@ const App = (() => {
   }
   function closeSettings() {
     document.getElementById('settings-panel').classList.remove('open');
+    // Re-fire onShow for the active tab so API key warning refreshes
+    if (_tabModules[_currentTab] && _tabModules[_currentTab].onShow) {
+      _tabModules[_currentTab].onShow();
+    }
   }
 
   function renderSettings() {
