@@ -14,6 +14,9 @@
   <link rel="manifest" href="manifest.json">
   <link rel="stylesheet" href="css/style.css">
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+  <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.css">
+  <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.Default.css">
+  <link rel="stylesheet" href="https://unpkg.com/leaflet-draw@1.0.4/dist/leaflet.draw.css">
 </head>
 <body>
 
@@ -259,6 +262,48 @@
     </div>
 
 
+    <!-- ════ MAP ════ -->
+    <div id="screen-map" class="screen screen-map">
+      <div id="map-main"></div>
+
+      <!-- Observation count badge -->
+      <div id="map-obs-count" class="map-obs-badge">Loading…</div>
+
+      <!-- Filter bar -->
+      <div id="map-filter-bar">
+        <button class="map-filter-btn active" data-status="all">All</button>
+        <button class="map-filter-btn map-filter-native"     data-status="Native">Native</button>
+        <button class="map-filter-btn map-filter-invasive"   data-status="Invasive">Invasive</button>
+        <button class="map-filter-btn map-filter-nonnative"  data-status="Non-native">Non-native</button>
+      </div>
+
+      <!-- Boundary type prompt (shown after drawing a polygon) -->
+      <div id="map-boundary-panel" style="display:none;position:absolute;inset:0;z-index:1500;background:rgba(0,0,0,.5);align-items:center;justify-content:center;">
+        <div class="map-boundary-content">
+          <div class="lbl" style="margin-bottom:10px">Save boundary as:</div>
+          <label style="display:flex;align-items:center;gap:8px;font-size:13px;cursor:pointer">
+            <input type="radio" name="map-boundary-type" value="property" checked> Property boundary
+          </label>
+          <label style="display:flex;align-items:center;gap:8px;font-size:13px;cursor:pointer;margin-top:10px">
+            <input type="radio" name="map-boundary-type" value="zone"> Zone boundary
+          </label>
+          <div id="map-boundary-zone-row" style="display:none;margin-top:8px">
+            <label class="lbl">Zone</label>
+            <select id="map-boundary-zone" style="width:100%"></select>
+          </div>
+          <div style="display:flex;gap:8px;margin-top:14px">
+            <button class="btn btn-sm" id="map-boundary-save" type="button">Save</button>
+            <button class="btn btn-sm btn-outline" id="map-boundary-cancel" type="button">Cancel</button>
+          </div>
+          <div style="margin-top:12px;padding-top:12px;border-top:1px solid var(--border);display:flex;gap:8px">
+            <button class="btn btn-sm btn-outline" id="map-clear-property" type="button" style="font-size:11px;color:var(--muted)">Clear property</button>
+            <button class="btn btn-sm btn-outline" id="map-clear-zone" type="button" style="font-size:11px;color:var(--muted)">Clear zones</button>
+          </div>
+        </div>
+      </div>
+    </div><!-- /screen-map -->
+
+
     <!-- ════ DRIVE ════ -->
     <div id="screen-drive" class="screen">
       <div id="drive-container">
@@ -278,10 +323,13 @@
       <span class="ico">📍</span>Log
     </button>
     <button class="tab-btn" data-tab="zones">
-      <span class="ico">🗺️</span>Zones
+      <span class="ico">🌿</span>Zones
     </button>
     <button class="tab-btn" data-tab="tasks">
       <span class="ico">✅</span>Tasks
+    </button>
+    <button class="tab-btn" data-tab="map">
+      <span class="ico">🗺️</span>Map
     </button>
     <button class="tab-btn" data-tab="drive">
       <span class="ico">📁</span>Drive
@@ -387,7 +435,10 @@
 
 <!-- ── Scripts ── -->
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script src="https://unpkg.com/leaflet.markercluster@1.5.3/dist/leaflet.markercluster.js"></script>
+<script src="https://unpkg.com/leaflet-draw@1.0.4/dist/leaflet.draw.js"></script>
 <script src="js/map-picker.js"></script>
+<script src="js/map.js"></script>
 <script src="js/app.js"></script>
 <script src="js/plant-id.js"></script>
 <script src="js/logger.js"></script>

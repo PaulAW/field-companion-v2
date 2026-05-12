@@ -305,11 +305,12 @@ const App = (() => {
     }
 
     const mods = [
-      ['PlantID', window.PlantID],
-      ['Logger',  window.Logger],
-      ['Zones',   window.Zones],
-      ['Tasks',   window.Tasks],
-      ['Drive',   window.Drive],
+      ['PlantID',      window.PlantID],
+      ['Logger',       window.Logger],
+      ['Zones',        window.Zones],
+      ['Tasks',        window.Tasks],
+      ['PropertyMap',  window.PropertyMap],
+      ['Drive',        window.Drive],
     ];
     for (const [name, mod] of mods) {
       if (mod) {
