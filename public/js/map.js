@@ -144,6 +144,8 @@ var PropertyMap = (() => {
   }
 
   /* ── Observations ── */
+  let _firstLoad = true;
+
   async function refreshObservations() {
     try {
       _allObs = await App.getAllObservations();
@@ -152,6 +154,19 @@ var PropertyMap = (() => {
     }
     renderPins();
     updateObsCount();
+
+    /* On first load, fit to observation bounds if any pins exist */
+    if (_firstLoad) {
+      _firstLoad = false;
+      setTimeout(() => {
+        try {
+          const bounds = _clusterGroup.getBounds();
+          if (bounds.isValid()) {
+            _map.fitBounds(bounds, { padding: [48, 48], maxZoom: 18 });
+          }
+        } catch(e) {}
+      }, 150);
+    }
   }
 
   function renderPins() {
