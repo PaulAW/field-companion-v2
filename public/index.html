@@ -241,6 +241,18 @@
           </p>
           <button class="btn" id="log-export-btn" type="button">⬇️ Download CSV file</button>
         </div>
+
+        <div class="card">
+          <div class="card-title">Import from CSV</div>
+          <p style="font-size:13px;color:var(--label);line-height:1.6;margin-bottom:14px">
+            Import observations exported from another device or from the V1 app. Duplicate entries (same date, zone, and common name) are skipped automatically.
+          </p>
+          <label class="btn btn-outline" style="cursor:pointer;text-align:center">
+            📂 Choose CSV file
+            <input type="file" id="log-import-input" accept=".csv,text/csv" style="display:none">
+          </label>
+          <div id="log-import-status" style="margin-top:10px;font-size:12px;display:none"></div>
+        </div>
       </div><!-- /log-panel-export -->
 
     </div><!-- /screen-log -->

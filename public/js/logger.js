@@ -264,16 +264,121 @@ var Logger = (() => {
   /* ── Export ── */
   function setupExport() {
     const btn = $('log-export-btn');
-    if (!btn) return;
-    btn.addEventListener('click', async () => {
-      const allObs = await App.getAllObservations();
-      if (allObs.length === 0) { App.toast('No observations to export'); return; }
-      const csv = App.obsArrayToCSV(allObs);
-      App.downloadCSV(csv, `field-log-${App.todayISO()}.csv`);
-    });
+    if (btn) {
+      btn.addEventListener('click', async () => {
+        const allObs = await App.getAllObservations();
+        if (allObs.length === 0) { App.toast('No observations to export'); return; }
+        const csv = App.obsArrayToCSV(allObs);
+        App.downloadCSV(csv, `field-log-${App.todayISO()}.csv`);
+      });
+    }
 
     const filterSel = $('log-history-zone-filter');
     if (filterSel) filterSel.addEventListener('change', loadHistory);
+
+    setupImport();
+  }
+
+  /* ── Import ── */
+  function setupImport() {
+    const input = $('log-import-input');
+    if (!input) return;
+    input.addEventListener('change', e => {
+      const file = e.target.files[0];
+      if (!file) return;
+      const reader = new FileReader();
+      reader.onload = ev => importCSV(ev.target.result);
+      reader.readAsText(file);
+      input.value = ''; // allow re-selecting same file
+    });
+  }
+
+  async function importCSV(text) {
+    const statusEl = $('log-import-status');
+    if (statusEl) { statusEl.style.display = 'block'; statusEl.textContent = 'Importing…'; statusEl.className = ''; }
+
+    const lines = parseCSVLines(text);
+    if (lines.length < 2) {
+      if (statusEl) { statusEl.textContent = 'No data rows found in file.'; statusEl.className = 'alert alert-error'; }
+      return;
+    }
+
+    // Skip header row; build a dedup key set from existing observations
+    const existing  = await App.getAllObservations();
+    const dupKeys   = new Set(existing.map(o => `${o.date}|${o.zone}|${(o.common_name||'').toLowerCase()}`));
+
+    let imported = 0, skipped = 0, errors = 0;
+
+    for (let i = 1; i < lines.length; i++) {
+      const cols = lines[i];
+      if (cols.length < 6) continue; // skip blank/malformed rows
+
+      // Column order: Date,Zone,Lat,Lng,Location,Common Name,Latin Name,Native,Keystone,Type,Action,Photo,Logged By,Notes
+      const obs = {
+        date:             cols[0]  || App.todayISO(),
+        zone:             cols[1]  || '',
+        lat:              cols[2]  || '',
+        lng:              cols[3]  || '',
+        location_desc:    cols[4]  || '',
+        common_name:      cols[5]  || '',
+        latin_name:       cols[6]  || '',
+        native_status:    cols[7]  || 'Unknown',
+        keystone:         cols[8]  || 'No',
+        observation_type: cols[9]  || 'Observation',
+        action_needed:    cols[10] || '',
+        notes:            cols[13] || '',
+        ai_identified:    false,
+      };
+
+      if (!obs.common_name) { skipped++; continue; }
+
+      const key = `${obs.date}|${obs.zone}|${obs.common_name.toLowerCase()}`;
+      if (dupKeys.has(key)) { skipped++; continue; }
+
+      try {
+        await App.saveObservation(obs);
+        dupKeys.add(key);
+        imported++;
+      } catch(e) {
+        errors++;
+      }
+    }
+
+    const msg = `✓ Imported ${imported} observation${imported !== 1 ? 's' : ''}` +
+      (skipped ? ` · ${skipped} skipped (duplicates or empty)` : '') +
+      (errors  ? ` · ${errors} errors` : '');
+
+    if (statusEl) {
+      statusEl.textContent = msg;
+      statusEl.className = imported > 0 ? 'alert alert-ok' : 'alert alert-warn';
+    }
+    if (imported > 0) App.toast(`Imported ${imported} observation${imported !== 1 ? 's' : ''} ✓`);
+  }
+
+  /* Parse a CSV string into an array of string arrays, handling quoted fields */
+  function parseCSVLines(text) {
+    const rows = [];
+    const lines = text.replace(/\r\n/g, '\n').replace(/\r/g, '\n').split('\n');
+    for (const line of lines) {
+      if (!line.trim()) continue;
+      const cols = [];
+      let cur = '', inQuote = false;
+      for (let i = 0; i < line.length; i++) {
+        const ch = line[i];
+        if (inQuote) {
+          if (ch === '"' && line[i + 1] === '"') { cur += '"'; i++; }
+          else if (ch === '"')                    { inQuote = false; }
+          else                                    { cur += ch; }
+        } else {
+          if (ch === '"')  { inQuote = true; }
+          else if (ch === ',') { cols.push(cur); cur = ''; }
+          else { cur += ch; }
+        }
+      }
+      cols.push(cur);
+      rows.push(cols);
+    }
+    return rows;
   }
 
   function esc(str) {
