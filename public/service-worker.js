@@ -1,6 +1,6 @@
 /* service-worker.js — Offline-first cache for Field Companion */
 
-const CACHE_NAME = 'field-companion-v25';
+const CACHE_NAME = 'field-companion-v26';
 
 const SHELL_FILES = [
   './',
@@ -8,6 +8,8 @@ const SHELL_FILES = [
   './manifest.json',
   './css/style.css',
   './js/app.js',
+  './js/auth.js',
+  './js/sync.js',
   './js/plant-id.js',
   './js/logger.js',
   './js/zones.js',
@@ -46,6 +48,8 @@ self.addEventListener('fetch', event => {
 
   /* Never intercept API calls — always go to network */
   if (url.hostname === 'api.anthropic.com') return;
+  if (url.hostname.endsWith('workers.dev')) return;
+  if (url.hostname === 'accounts.google.com') return;
 
   /* Cache-first strategy for everything else */
   event.respondWith(

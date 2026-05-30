@@ -1,6 +1,6 @@
 /* app.js — Field Companion core: routing, data loading, IndexedDB, toast, offline */
 
-const APP_BUILD = '2026-05-11-v';   // bump this letter each deploy for version tracking
+const APP_BUILD = '2026-05-29-a';   // bump this letter each deploy for version tracking
 
 const App = (() => {
   let _zones = [];
@@ -156,6 +156,7 @@ const App = (() => {
   }
 
   function renderSettings() {
+    if (window.Auth && Auth.renderAuthUI) Auth.renderAuthUI();
     const key = getApiKey();
     document.getElementById('api-key-input').value = key ? '••••••••••••••••' : '';
     document.getElementById('api-key-status').textContent = key
@@ -305,6 +306,7 @@ const App = (() => {
     }
 
     const mods = [
+      ['Auth',         window.Auth],
       ['PlantID',      window.PlantID],
       ['Logger',       window.Logger],
       ['Zones',        window.Zones],
@@ -317,6 +319,11 @@ const App = (() => {
         try { mod.init(); }
         catch (e) { console.error('Field Companion:', name, 'init failed:', e); }
       }
+    }
+
+    // Kick off a background sync if signed in
+    if (window.Auth && window.Sync && Auth.isSignedIn()) {
+      setTimeout(() => Sync.fullSync().catch(console.warn), 2000);
     }
 
     const buildEl = document.getElementById('app-build');

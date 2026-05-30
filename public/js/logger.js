@@ -386,5 +386,9 @@ var Logger = (() => {
       .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
   }
 
-  return { init };
+  function refreshIfVisible() {
+    if (_mode === 'history') loadHistory();
+  }
+
+  return { init, refreshIfVisible };
 })();

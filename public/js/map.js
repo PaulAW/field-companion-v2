@@ -383,5 +383,9 @@ var PropertyMap = (() => {
     return String(s || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
   }
 
-  return { init };
+  function refreshIfVisible() {
+    if (_initialized) refreshObservations();
+  }
+
+  return { init, refreshIfVisible };
 })();
