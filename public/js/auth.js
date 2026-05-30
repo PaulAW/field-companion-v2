@@ -119,13 +119,15 @@ var Auth = (() => {
         <p style="font-size:12px;color:var(--muted);margin:0 0 8px">Sign in to sync observations across devices.</p>
         <div id="google-signin-btn"></div>`;
 
-      // Render Google Sign-In button
+      // Render Google Sign-In button — always shows account chooser
       setTimeout(() => {
         if (window.google && google.accounts) {
           google.accounts.id.renderButton(
             document.getElementById('google-signin-btn'),
             { theme: 'outline', size: 'medium', text: 'sign_in_with', width: 240 }
           );
+          // Cancel any pending One Tap so the button is the only sign-in path
+          google.accounts.id.cancel();
         }
       }, 100);
     }
@@ -139,10 +141,8 @@ var Auth = (() => {
         google.accounts.id.initialize({
           client_id: '298580141763-qm4ud9gcrulad44oclbn7c2sgjadde1i.apps.googleusercontent.com',
           callback: handleCredentialResponse,
-          auto_select: true,
+          auto_select: false,   // never silently sign in — user must click the button
         });
-        // Silently prompt (One Tap) — will fire callback if user already consented
-        google.accounts.id.prompt();
       } else {
         setTimeout(tryInit, 200);
       }
