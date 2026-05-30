@@ -164,6 +164,11 @@ var Sync = (() => {
         });
         localStorage.setItem('fc_zone_boundaries', JSON.stringify(existing));
       }
+
+      // Reload map boundaries if map is already initialised
+      if (window.PropertyMap && PropertyMap.reloadBoundaries) {
+        PropertyMap.reloadBoundaries();
+      }
     } catch(e) {
       console.warn('Boundary pull error:', e);
     }

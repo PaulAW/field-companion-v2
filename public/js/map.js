@@ -137,7 +137,12 @@ var PropertyMap = (() => {
       App.toast('Zone boundaries cleared');
     });
 
-    loadBoundaries();
+    // Pull cloud boundaries first, then render
+    if (window.Auth && Auth.isSignedIn() && window.Sync) {
+      Sync.pullBoundaries().then(() => loadBoundaries()).catch(() => loadBoundaries());
+    } else {
+      loadBoundaries();
+    }
     refreshObservations();
 
     setTimeout(() => { if (_map) _map.invalidateSize(); }, 80);
@@ -344,6 +349,11 @@ var PropertyMap = (() => {
     const panel = $('map-boundary-panel');
     if (panel) panel.style.display = 'none';
     loadBoundaries();
+
+    // Push to cloud immediately so other devices get it
+    if (window.Auth && Auth.isSignedIn() && window.Sync) {
+      Sync.pushBoundaries().catch(console.warn);
+    }
   }
 
   function cancelDraw() {
@@ -387,5 +397,9 @@ var PropertyMap = (() => {
     if (_initialized) refreshObservations();
   }
 
-  return { init, refreshIfVisible };
+  function reloadBoundaries() {
+    if (_initialized) loadBoundaries();
+  }
+
+  return { init, refreshIfVisible, reloadBoundaries };
 })();
