@@ -36,6 +36,10 @@ var PropertyMap = (() => {
     } else {
       setTimeout(() => { if (_map) _map.invalidateSize(); }, 80);
       refreshObservations();
+      // Re-pull boundaries in case auth state changed since last visit
+      if (window.Auth && Auth.isSignedIn() && window.Sync) {
+        Sync.pullBoundaries().catch(console.warn);
+      }
     }
   }
 

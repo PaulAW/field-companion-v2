@@ -79,8 +79,8 @@ var Auth = (() => {
         App.toast('Signed in as ' + user.name + ' ✓');
         // Update settings panel UI
         renderAuthUI();
-        // Trigger a sync now that we're signed in
-        if (window.Sync) Sync.pull();
+        // Full sync now that we're signed in (observations + boundaries)
+        if (window.Sync) Sync.fullSync();
       })
       .catch(e => {
         App.toast('Sign-in error: ' + e.message);
@@ -111,7 +111,7 @@ var Auth = (() => {
       });
 
       document.getElementById('sync-now-btn').addEventListener('click', () => {
-        if (window.Sync) Sync.push().then(() => Sync.pull());
+        if (window.Sync) Sync.fullSync();
       });
     } else {
       el.innerHTML = `
