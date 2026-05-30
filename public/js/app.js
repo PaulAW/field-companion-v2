@@ -1,6 +1,6 @@
 /* app.js — Field Companion core: routing, data loading, IndexedDB, toast, offline */
 
-const APP_BUILD = '2026-05-29-a';   // bump this letter each deploy for version tracking
+const APP_BUILD = '2026-05-30-a';   // bump this letter each deploy for version tracking
 
 const App = (() => {
   let _zones = [];
@@ -33,8 +33,15 @@ const App = (() => {
     return new Promise((resolve, reject) => {
       const tx = _db.transaction('observations', 'readwrite');
       const req = tx.objectStore('observations').add({ ...obs, created_at: Date.now() });
-      req.onsuccess = e => resolve(e.target.result);
-      req.onerror   = e => reject(e.target.error);
+      req.onsuccess = e => {
+        const localId = e.target.result;
+        // Push to cloud immediately in background if signed in
+        if (window.Auth && Auth.isSignedIn() && window.Sync) {
+          Sync.push().catch(console.warn);
+        }
+        resolve(localId);
+      };
+      req.onerror = e => reject(e.target.error);
     });
   }
 
@@ -64,8 +71,14 @@ const App = (() => {
     return new Promise((resolve, reject) => {
       const tx = _db.transaction('observations', 'readwrite');
       const req = tx.objectStore('observations').delete(id);
-      req.onsuccess = () => resolve();
-      req.onerror   = e => reject(e.target.error);
+      req.onsuccess = () => {
+        // Push deletion to cloud in background if signed in
+        if (window.Auth && Auth.isSignedIn() && window.Sync) {
+          Sync.push().catch(console.warn);
+        }
+        resolve();
+      };
+      req.onerror = e => reject(e.target.error);
     });
   }
 
