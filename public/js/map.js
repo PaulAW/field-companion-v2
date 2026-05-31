@@ -22,6 +22,8 @@ var PropertyMap = (() => {
   let _allObs       = [];
   let _filterStatus = 'all';
   let _pendingGeoJSON = null;
+  let _labelsVisible  = true;
+  let _labelToggleBtn = null;
 
   const $ = id => document.getElementById(id);
 
@@ -98,6 +100,24 @@ var PropertyMap = (() => {
 
     /* My location button */
     addLocationControl();
+
+    /* Zone label toggle button (A-6) */
+    addLabelToggleControl();
+
+    /* Zoom-level label control (A-5) */
+    _map.on('zoomend', () => {
+      const zoom = _map.getZoom();
+      _zoneLayer.eachLayer(layer => {
+        const toggle = sub => {
+          if (_labelsVisible && zoom >= 15) {
+            sub.openTooltip && sub.openTooltip();
+          } else {
+            sub.closeTooltip && sub.closeTooltip();
+          }
+        };
+        layer.eachLayer ? layer.eachLayer(toggle) : toggle(layer);
+      });
+    });
 
     /* Filter bar */
     document.querySelectorAll('.map-filter-btn').forEach(btn => {
@@ -258,15 +278,32 @@ var PropertyMap = (() => {
       if (raw) {
         const zoneMap = JSON.parse(raw);
         const zones   = App.getZones();
+        const zoom = _map ? _map.getZoom() : 17;
         Object.entries(zoneMap).forEach(([zoneId, geojson]) => {
-          const zone  = zones.find(z => z.id === zoneId);
-          const color = zone && zone.urgency === 'high' ? '#e53935' : '#43a047';
+          const zone       = zones.find(z => z.id === zoneId);
+          const color      = zone && zone.urgency === 'high' ? '#e53935' : '#43a047';
+          const shortLabel = zone ? zone.id : zoneId;
+          const fullLabel  = zone ? `${zone.id} – ${zone.name}` : zoneId;
           L.geoJSON(geojson, {
             style: { color, weight: 2, fillColor: color, fillOpacity: 0.15 },
             onEachFeature: (_, layer) => {
-              const label = zone ? `${zone.id} – ${zone.name}` : zoneId;
-              layer.bindTooltip(label, {
+              layer.bindTooltip(shortLabel, {
                 permanent: true, direction: 'center', className: 'map-zone-tooltip',
+              });
+              // Respect initial zoom/visibility state
+              if (!_labelsVisible || zoom < 15) layer.closeTooltip();
+
+              // A-4: tap/click shows full name for 2 seconds
+              layer.on('click', () => {
+                layer.bindTooltip(fullLabel, {
+                  permanent: false, direction: 'center', className: 'map-zone-tooltip-full',
+                }).openTooltip();
+                setTimeout(() => {
+                  layer.bindTooltip(shortLabel, {
+                    permanent: true, direction: 'center', className: 'map-zone-tooltip',
+                  });
+                  if (!_labelsVisible || _map.getZoom() < 15) layer.closeTooltip();
+                }, 2000);
               });
             },
           }).addTo(_zoneLayer);
@@ -391,6 +428,44 @@ var PropertyMap = (() => {
       }).addTo(_map).bindPopup('📍 You are here').openPopup();
     });
     _map.on('locationerror', () => App.toast('Location unavailable'));
+  }
+
+  /* A-6: label toggle control */
+  function addLabelToggleControl() {
+    const LabelToggle = L.Control.extend({
+      options: { position: 'topright' },
+      onAdd() {
+        const btn = L.DomUtil.create('button', 'leaflet-bar map-label-toggle-btn');
+        btn.innerHTML = '🏷️';
+        btn.title = 'Toggle zone labels';
+        btn.type  = 'button';
+        btn.style.cssText = 'background:white;border:none;cursor:pointer;padding:5px 8px;font-size:15px;display:block;line-height:1;';
+        _labelToggleBtn = btn;
+        L.DomEvent.on(btn, 'click', e => {
+          L.DomEvent.stopPropagation(e);
+          _labelsVisible = !_labelsVisible;
+          btn.style.opacity = _labelsVisible ? '1' : '0.35';
+          applyLabelVisibility();
+        });
+        return btn;
+      },
+    });
+    new LabelToggle().addTo(_map);
+  }
+
+  function applyLabelVisibility() {
+    if (!_map) return;
+    const zoom = _map.getZoom();
+    _zoneLayer.eachLayer(layer => {
+      const toggle = sub => {
+        if (_labelsVisible && zoom >= 15) {
+          sub.openTooltip && sub.openTooltip();
+        } else {
+          sub.closeTooltip && sub.closeTooltip();
+        }
+      };
+      layer.eachLayer ? layer.eachLayer(toggle) : toggle(layer);
+    });
   }
 
   function esc(s) {

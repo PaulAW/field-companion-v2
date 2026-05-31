@@ -5,6 +5,7 @@ var Logger = (() => {
   let _gpsCoords = null;
   let _observations = [];
   let _filterZone = '';
+  let _editingId = null;   // non-null when editing an existing observation
 
   const $ = id => document.getElementById(id);
 
@@ -32,8 +33,19 @@ var Logger = (() => {
         $('log-panel-history').style.display  = _mode === 'history'  ? 'block' : 'none';
         $('log-panel-export').style.display   = _mode === 'export'   ? 'block' : 'none';
         if (_mode === 'history') loadHistory();
+        if (_mode === 'new' && !_editingId) resetForm();
       });
     });
+  }
+
+  function switchToNewEntry() {
+    _mode = 'new';
+    document.querySelectorAll('.log-subtab').forEach(b => b.classList.remove('active'));
+    const newBtn = document.querySelector('.log-subtab[data-mode="new"]');
+    if (newBtn) newBtn.classList.add('active');
+    $('log-panel-new').style.display    = 'block';
+    $('log-panel-history').style.display = 'none';
+    $('log-panel-export').style.display  = 'none';
   }
 
   /* ── Zone dropdown (shared helper) ── */
@@ -58,6 +70,12 @@ var Logger = (() => {
     $('log-date').value = App.todayISO();
 
     $('log-save-btn').addEventListener('click', handleSave);
+
+    const cancelLink = $('log-edit-cancel');
+    if (cancelLink) cancelLink.addEventListener('click', () => {
+      _editingId = null;
+      resetForm();
+    });
   }
 
   function resetForm() {
@@ -75,6 +93,17 @@ var Logger = (() => {
     ['log-native-status','log-keystone','log-obs-type'].forEach(id => {
       if ($(id)) $(id).value = $(id).options[0].value;
     });
+
+    // Restore form to "new" state
+    _editingId = null;
+    const title = $('log-form-title');
+    if (title) title.textContent = 'New observation';
+    const cancelLink = $('log-edit-cancel');
+    if (cancelLink) cancelLink.style.display = 'none';
+    const dupBanner = $('log-duplicate-banner');
+    if (dupBanner) dupBanner.style.display = 'none';
+    const saveBtn = $('log-save-btn');
+    if (saveBtn) saveBtn.textContent = '💾 Save observation';
   }
 
   /* ── GPS ── */
@@ -159,18 +188,114 @@ var Logger = (() => {
     };
 
     try {
-      await App.saveObservation(obs);
-      App.toast('Observation saved ✓');
+      if (_editingId) {
+        const id = _editingId;
+        await App.updateObservation(id, obs);
+        App.toast('Observation updated ✓');
+      } else {
+        await App.saveObservation(obs);
+        App.toast('Observation saved ✓');
+      }
       resetForm();
     } catch (err) {
       App.toast('Save failed: ' + err.message);
     }
   }
 
+  /* ── Edit observation ── */
+  function editObservation(obs) {
+    App.switchTab('log');
+    switchToNewEntry();
+
+    _editingId = obs.id;
+
+    // Pre-populate fields
+    $('log-date').value = obs.date || App.todayISO();
+    $('log-zone').value = obs.zone || '';
+    $('log-location-desc').value = obs.location_desc || '';
+    $('log-common-name').value   = obs.common_name   || '';
+    $('log-latin-name').value    = obs.latin_name     || '';
+    $('log-native-status').value = obs.native_status  || 'Unknown';
+    $('log-keystone').value      = obs.keystone       || 'No';
+    $('log-obs-type').value      = obs.observation_type || 'Observation';
+    $('log-action-needed').value = obs.action_needed  || '';
+    $('log-notes').value         = obs.notes          || '';
+
+    // GPS
+    if (obs.lat && obs.lng) {
+      _gpsCoords = { lat: obs.lat, lng: obs.lng };
+      const status = $('log-gps-status');
+      if (status) { status.textContent = `✓ ${obs.lat}, ${obs.lng}`; status.className = 'gps-status'; }
+      const refine = $('log-gps-refine');
+      if (refine) refine.style.display = 'block';
+    } else {
+      _gpsCoords = null;
+      const status = $('log-gps-status');
+      if (status) { status.textContent = ''; status.className = 'gps-status'; }
+    }
+
+    // Update form chrome
+    const title = $('log-form-title');
+    if (title) title.textContent = `Editing observation from ${App.formatDate(obs.date)}`;
+    const cancelLink = $('log-edit-cancel');
+    if (cancelLink) cancelLink.style.display = 'inline';
+    const dupBanner = $('log-duplicate-banner');
+    if (dupBanner) dupBanner.style.display = 'none';
+    const saveBtn = $('log-save-btn');
+    if (saveBtn) saveBtn.textContent = '💾 Save changes';
+  }
+
+  /* ── Duplicate observation ── */
+  function duplicateObservation(obs) {
+    App.switchTab('log');
+    switchToNewEntry();
+
+    _editingId = null;
+
+    // Pre-populate all fields except date and GPS
+    $('log-date').value          = App.todayISO();
+    $('log-zone').value          = obs.zone || '';
+    $('log-location-desc').value = obs.location_desc || '';
+    $('log-common-name').value   = obs.common_name   || '';
+    $('log-latin-name').value    = obs.latin_name     || '';
+    $('log-native-status').value = obs.native_status  || 'Unknown';
+    $('log-keystone').value      = obs.keystone       || 'No';
+    $('log-obs-type').value      = obs.observation_type || 'Observation';
+    $('log-action-needed').value = obs.action_needed  || '';
+    $('log-notes').value         = obs.notes          || '';
+
+    // Clear GPS
+    _gpsCoords = null;
+    const status = $('log-gps-status');
+    if (status) { status.textContent = 'No GPS — capture or pick on map'; status.className = 'gps-status'; }
+    const fallback = $('log-gps-fallback');
+    if (fallback) fallback.style.display = 'none';
+    const refine = $('log-gps-refine');
+    if (refine) refine.style.display = 'none';
+
+    // Restore form title to normal
+    const title = $('log-form-title');
+    if (title) title.textContent = 'New observation';
+    const cancelLink = $('log-edit-cancel');
+    if (cancelLink) cancelLink.style.display = 'none';
+
+    // Show duplicate banner
+    const dupBanner = $('log-duplicate-banner');
+    if (dupBanner) {
+      dupBanner.textContent = `Duplicated from ${App.formatDate(obs.date)} — update location before saving`;
+      dupBanner.style.display = 'block';
+    }
+    const saveBtn = $('log-save-btn');
+    if (saveBtn) saveBtn.textContent = '💾 Save observation';
+  }
+
   /* ── History ── */
   async function loadHistory() {
     const container = $('log-history-list');
     if (!container) return;
+
+    // A-3: Sync status indicator
+    renderSyncStatus();
 
     try {
       const zone = ($('log-history-zone-filter') || {}).value || '';
@@ -191,6 +316,35 @@ var Logger = (() => {
 
     } catch (err) {
       container.innerHTML = `<div class="alert alert-error">Error loading history: ${err.message}</div>`;
+    }
+  }
+
+  /* A-3: render sync status row */
+  async function renderSyncStatus() {
+    const el = $('log-sync-status');
+    if (!el) return;
+    if (!window.Auth || !Auth.isSignedIn()) {
+      el.style.display = 'none';
+      return;
+    }
+    try {
+      const pending = await App.getPendingSyncCount();
+      if (pending === 0) {
+        el.style.cssText = 'display:block;font-size:12px;padding:6px 10px;border-radius:6px;color:#2e7d32;background:#e8f5e9;cursor:default';
+        el.textContent = '✓ All synced';
+      } else {
+        el.style.cssText = 'display:block;font-size:12px;padding:6px 10px;border-radius:6px;color:#e65100;background:#fff3e0;cursor:pointer';
+        el.textContent = `⚠ ${pending} pending sync — tap to sync`;
+        el.onclick = async () => {
+          el.textContent = 'Syncing…';
+          try {
+            await Sync.push();
+          } catch(e) { /* ignore */ }
+          renderSyncStatus();
+        };
+      }
+    } catch(e) {
+      el.style.display = 'none';
     }
   }
 
@@ -243,8 +397,10 @@ var Logger = (() => {
         </div>
         <div class="lbl">CSV row for Google Sheet</div>
         <div class="mono-box">${esc(csvRow)}</div>
-        <div style="display:flex;gap:8px;margin-top:10px">
+        <div style="display:flex;gap:8px;margin-top:10px;flex-wrap:wrap">
           <button class="btn btn-outline btn-sm" id="obs-copy-csv">📋 Copy CSV</button>
+          <button class="btn btn-outline btn-sm" id="obs-edit">✏️ Edit</button>
+          <button class="btn btn-outline btn-sm" id="obs-duplicate">📋 Duplicate</button>
           <button class="btn btn-sm btn-danger" id="obs-delete">🗑 Delete</button>
         </div>
       </div>`;
@@ -252,6 +408,14 @@ var Logger = (() => {
     modal.querySelector('#obs-detail-close').addEventListener('click', () => modal.remove());
     modal.addEventListener('click', e => { if (e.target === modal) modal.remove(); });
     modal.querySelector('#obs-copy-csv').addEventListener('click', () => App.copyToClipboard(csvRow));
+    modal.querySelector('#obs-edit').addEventListener('click', () => {
+      modal.remove();
+      editObservation(obs);
+    });
+    modal.querySelector('#obs-duplicate').addEventListener('click', () => {
+      modal.remove();
+      duplicateObservation(obs);
+    });
     modal.querySelector('#obs-delete').addEventListener('click', async () => {
       if (!confirm(`Delete observation for "${obs.common_name}"?`)) return;
       await App.deleteObservation(obs.id);

@@ -1,6 +1,6 @@
 /* app.js — Field Companion core: routing, data loading, IndexedDB, toast, offline */
 
-const APP_BUILD = '2026-05-30-d';   // bump this letter each deploy for version tracking
+const APP_BUILD = '2026-05-30-e';   // bump this letter each deploy for version tracking
 
 const App = (() => {
   let _zones = [];
@@ -80,6 +80,34 @@ const App = (() => {
       };
       req.onerror = e => reject(e.target.error);
     });
+  }
+
+  function updateObservation(id, data) {
+    if (!_db) return Promise.reject(new Error('Database not ready'));
+    return new Promise((resolve, reject) => {
+      const tx = _db.transaction('observations', 'readwrite');
+      const store = tx.objectStore('observations');
+      const getReq = store.get(id);
+      getReq.onsuccess = e => {
+        const existing = e.target.result;
+        if (!existing) { reject(new Error('Observation not found')); return; }
+        const updated = { ...existing, ...data, modified_at: Date.now() };
+        const putReq = store.put(updated);
+        putReq.onsuccess = () => {
+          if (window.Auth && Auth.isSignedIn() && window.Sync) {
+            Sync.push().catch(console.warn);
+          }
+          resolve();
+        };
+        putReq.onerror = e => reject(e.target.error);
+      };
+      getReq.onerror = e => reject(e.target.error);
+    });
+  }
+
+  async function getPendingSyncCount() {
+    const all = await getAllObservations();
+    return all.filter(o => !o.cloud_id).length;
   }
 
   /* ── JSON data loaders ── */
@@ -347,7 +375,7 @@ const App = (() => {
 
   return {
     init,
-    getDB, saveObservation, getAllObservations, getObservationsByZone, deleteObservation,
+    getDB, saveObservation, updateObservation, getAllObservations, getObservationsByZone, deleteObservation, getPendingSyncCount,
     getZones, getZone, getTasks, getDriveLinks, getPropertyCtx,
     getApiKey, setApiKey,
     getConfidenceThreshold, setConfidenceThreshold,

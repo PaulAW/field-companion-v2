@@ -124,7 +124,11 @@
       <!-- NEW ENTRY panel -->
       <div id="log-panel-new">
         <div class="card">
-          <div class="card-title">New observation</div>
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:2px">
+            <div class="card-title" id="log-form-title" style="margin-bottom:0">New observation</div>
+            <a id="log-edit-cancel" style="display:none;font-size:12px;color:var(--muted);cursor:pointer;text-decoration:underline">Cancel edit</a>
+          </div>
+          <div id="log-duplicate-banner" style="display:none;font-size:11px;color:var(--amber);background:#fff8e1;border-radius:6px;padding:6px 10px;margin-bottom:8px"></div>
 
           <div class="row2">
             <div class="field">
@@ -216,6 +220,7 @@
 
       <!-- HISTORY panel -->
       <div id="log-panel-history" style="display:none">
+        <div id="log-sync-status" style="display:none;margin-bottom:8px;font-size:12px;padding:6px 10px;border-radius:6px"></div>
         <div class="field" style="margin-bottom:12px">
           <label for="log-history-zone-filter">Filter by zone</label>
           <select id="log-history-zone-filter">
