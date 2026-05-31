@@ -40,6 +40,10 @@ var Sync = (() => {
       });
       if (!res.ok) throw new Error('Sync push failed: ' + res.status);
       const data = await res.json();
+      // Mark all pushed observations as synced in local DB
+      if (data.upserted > 0) {
+        await App.markObservationsSynced(unsynced.map(o => o.id));
+      }
       setStatus(`Pushed ${data.upserted} observation${data.upserted !== 1 ? 's' : ''}`);
     } catch(e) {
       setStatus('Sync error: ' + e.message);

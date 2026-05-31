@@ -677,9 +677,10 @@ input:focus, select:focus, textarea:focus {
 }
 .map-locate-btn:active { background: #f0f0f0; }
 
-/* Zone polygon tooltip */
-.map-zone-tooltip {
-  background: rgba(20,20,20,.75);
+/* Zone polygon tooltips — override Leaflet defaults */
+.leaflet-tooltip.map-zone-tooltip,
+.leaflet-tooltip.map-zone-tooltip-full {
+  background: rgba(20,20,20,.78);
   color: #fff;
   border: none;
   border-radius: 4px;
@@ -689,4 +690,20 @@ input:focus, select:focus, textarea:focus {
   white-space: nowrap;
   box-shadow: none;
 }
-.map-zone-tooltip::before { display: none; }
+.leaflet-tooltip.map-zone-tooltip::before,
+.leaflet-tooltip.map-zone-tooltip-full::before { display: none; }
+/* fallback selectors for browsers where className is on inner element */
+.map-zone-tooltip,
+.map-zone-tooltip-full {
+  background: rgba(20,20,20,.78);
+  color: #fff;
+  border: none;
+  border-radius: 4px;
+  font-size: 11px;
+  font-weight: 600;
+  padding: 2px 7px;
+  white-space: nowrap;
+  box-shadow: none;
+}
+.map-zone-tooltip::before,
+.map-zone-tooltip-full::before { display: none; }

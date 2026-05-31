@@ -1,6 +1,6 @@
 /* app.js — Field Companion core: routing, data loading, IndexedDB, toast, offline */
 
-const APP_BUILD = '2026-05-30-e';   // bump this letter each deploy for version tracking
+const APP_BUILD = '2026-05-31-a';   // bump this letter each deploy for version tracking
 
 const App = (() => {
   let _zones = [];
@@ -102,6 +102,25 @@ const App = (() => {
         putReq.onerror = e => reject(e.target.error);
       };
       getReq.onerror = e => reject(e.target.error);
+    });
+  }
+
+  function markObservationsSynced(ids) {
+    if (!_db || !ids.length) return Promise.resolve();
+    return new Promise(resolve => {
+      const tx = _db.transaction('observations', 'readwrite');
+      const store = tx.objectStore('observations');
+      let pending = ids.length;
+      const done = () => { if (--pending === 0) resolve(); };
+      ids.forEach(id => {
+        const req = store.get(id);
+        req.onsuccess = e => {
+          const rec = e.target.result;
+          if (rec) { rec.cloud_id = 'synced'; store.put(rec); }
+          done();
+        };
+        req.onerror = done;
+      });
     });
   }
 
@@ -266,7 +285,11 @@ const App = (() => {
 
   /* ── Date helpers ── */
   function todayISO() {
-    return new Date().toISOString().split('T')[0];
+    const d = new Date();
+    const y = d.getFullYear();
+    const m = String(d.getMonth() + 1).padStart(2, '0');
+    const day = String(d.getDate()).padStart(2, '0');
+    return `${y}-${m}-${day}`;
   }
 
   function formatDate(iso) {
@@ -375,7 +398,7 @@ const App = (() => {
 
   return {
     init,
-    getDB, saveObservation, updateObservation, getAllObservations, getObservationsByZone, deleteObservation, getPendingSyncCount,
+    getDB, saveObservation, updateObservation, getAllObservations, getObservationsByZone, deleteObservation, getPendingSyncCount, markObservationsSynced,
     getZones, getZone, getTasks, getDriveLinks, getPropertyCtx,
     getApiKey, setApiKey,
     getConfidenceThreshold, setConfidenceThreshold,

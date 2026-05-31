@@ -109,7 +109,7 @@ var PropertyMap = (() => {
       const zoom = _map.getZoom();
       _zoneLayer.eachLayer(layer => {
         const toggle = sub => {
-          if (_labelsVisible && zoom >= 15) {
+          if (_labelsVisible && zoom >= 17) {
             sub.openTooltip && sub.openTooltip();
           } else {
             sub.closeTooltip && sub.closeTooltip();
@@ -458,7 +458,7 @@ var PropertyMap = (() => {
     const zoom = _map.getZoom();
     _zoneLayer.eachLayer(layer => {
       const toggle = sub => {
-        if (_labelsVisible && zoom >= 15) {
+        if (_labelsVisible && zoom >= 17) {
           sub.openTooltip && sub.openTooltip();
         } else {
           sub.closeTooltip && sub.closeTooltip();
