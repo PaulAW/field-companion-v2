@@ -92,7 +92,7 @@ var PlantID = (() => {
       if (!file) return;
       const reader = new FileReader();
       reader.onload = async ev => {
-        const compressed = await compressImage(ev.target.result, 1600, 0.90);
+        const compressed = await compressImage(ev.target.result, 2000, 0.95);
         _photoBase64 = compressed.split(',')[1];
         _photoType   = 'image/jpeg';
         const preview = $('pid-photo-preview');
@@ -488,7 +488,7 @@ var PlantID = (() => {
       if (!file) return;
       const reader = new FileReader();
       reader.onload = async ev => {
-        const compressed = await compressImage(ev.target.result, 1600, 0.90);
+        const compressed = await compressImage(ev.target.result, 2000, 0.95);
         _supplementalPhotos.push({ data: compressed.split(',')[1], type: 'image/jpeg' });
         await reIdentify();
       };
