@@ -5,9 +5,10 @@ var PlantID = (() => {
   let _photoType        = 'image/jpeg';
   let _gpsCoords        = null;
   let _lastResult       = null;
-  let _supplementalPhotos = [];  // extra photos for low-confidence re-submission
-  let _lastZone         = '';
-  let _lastNotes        = '';
+  let _supplementalPhotos   = [];  // extra photos for low-confidence re-submission
+  let _lastZone             = '';
+  let _lastNotes            = '';
+  let _plantNetCandidates   = null; // top-3 PlantNet results for hybrid flow
 
   const $ = id => document.getElementById(id);
 
@@ -188,9 +189,10 @@ var PlantID = (() => {
     _photoType          = 'image/jpeg';
     _gpsCoords          = null;
     _lastResult         = null;
-    _supplementalPhotos = [];
-    _lastZone           = '';
-    _lastNotes          = '';
+    _supplementalPhotos   = [];
+    _lastZone             = '';
+    _lastNotes            = '';
+    _plantNetCandidates   = null;
     try { sessionStorage.removeItem('fc_photo_b64'); } catch(e) {}
 
     const preview = $('pid-photo-preview');
@@ -228,15 +230,29 @@ var PlantID = (() => {
     if (!key) { App.toast('Add your API key in Settings first'); App.openSettings(); return; }
     if (!navigator.onLine) { showOfflineMessage(); return; }
 
-    _lastZone         = $('pid-zone').value;
-    _lastNotes        = ($('pid-notes').value || '').trim();
+    _lastZone           = $('pid-zone').value;
+    _lastNotes          = ($('pid-notes').value || '').trim();
     _supplementalPhotos = [];
+    _plantNetCandidates = null;
 
     showSpinner(true);
     hideResult();
 
+    const pnKey = App.getPlantNetKey();
+    if (pnKey && navigator.onLine) {
+      setSpinnerMsg('Step 1 of 2: Identifying species…');
+      try {
+        _plantNetCandidates = await callPlantNetAPI(pnKey, []);
+      } catch(e) {
+        console.warn('PlantNet failed, falling back to Claude-only:', e);
+        if (e.status === 429) App.toast('PlantNet limit reached — using Claude only');
+        _plantNetCandidates = null;
+      }
+      setSpinnerMsg('Step 2 of 2: Getting property advice…');
+    }
+
     try {
-      const result = await callClaudeAPI(key, _lastNotes);
+      const result = await callClaudeAPI(key, _lastNotes, null, _plantNetCandidates);
       _lastResult = result;
       showResult(result, _lastZone, _lastNotes);
     } catch (err) {
@@ -253,12 +269,24 @@ var PlantID = (() => {
     showSpinner(true);
     hideResult();
 
+    const pnKey = App.getPlantNetKey();
+    if (pnKey && navigator.onLine) {
+      setSpinnerMsg('Step 1 of 2: Identifying species…');
+      try {
+        _plantNetCandidates = await callPlantNetAPI(pnKey, _supplementalPhotos);
+      } catch(e) {
+        console.warn('PlantNet re-identify failed:', e);
+        _plantNetCandidates = null;
+      }
+      setSpinnerMsg('Step 2 of 2: Getting property advice…');
+    }
+
     const extraNote = _lastNotes
       ? _lastNotes + '\n\nPlease re-evaluate with the additional photo(s) provided.'
       : 'Please re-evaluate with the additional photo(s) provided.';
 
     try {
-      const result = await callClaudeAPI(key, extraNote, _supplementalPhotos);
+      const result = await callClaudeAPI(key, extraNote, _supplementalPhotos, _plantNetCandidates);
       _lastResult = result;
       showResult(result, _lastZone, _lastNotes);
     } catch (err) {
@@ -280,8 +308,44 @@ var PlantID = (() => {
     return esc(err.message) + '<br><small style="color:var(--muted)">' + esc(raw) + '</small>';
   }
 
+  /* ── PlantNet API call ── */
+  async function callPlantNetAPI(apiKey, extraPhotos) {
+    // Convert primary base64 photo to Blob
+    const toBlob = (b64) => {
+      const bytes = atob(b64);
+      const arr = new Uint8Array(bytes.length);
+      for (let i = 0; i < bytes.length; i++) arr[i] = bytes.charCodeAt(i);
+      return new Blob([arr], { type: 'image/jpeg' });
+    };
+
+    const form = new FormData();
+    form.append('images', toBlob(_photoBase64), 'photo.jpg');
+    if (extraPhotos && extraPhotos.length) {
+      extraPhotos.forEach((p, i) => form.append('images', toBlob(p.data), `photo${i+2}.jpg`));
+    }
+    form.append('organs', 'auto');
+
+    const res = await fetch(
+      `https://my-api.plantnet.org/v2/identify/all?api-key=${encodeURIComponent(apiKey)}&nb-results=3&lang=en`,
+      { method: 'POST', body: form }
+    );
+
+    if (!res.ok) {
+      const err = new Error('PlantNet error ' + res.status);
+      err.status = res.status;
+      throw err;
+    }
+
+    const data = await res.json();
+    return (data.results || []).slice(0, 3).map(r => ({
+      scientificName: r.species?.scientificNameWithoutAuthor || '',
+      commonName:     (r.species?.commonNames || [])[0] || '',
+      score:          Math.round((r.score || 0) * 100),
+    }));
+  }
+
   /* ── Claude API call ── */
-  async function callClaudeAPI(apiKey, userNotes, extraPhotos) {
+  async function callClaudeAPI(apiKey, userNotes, extraPhotos, plantNetCandidates) {
     const location = _gpsCoords
       ? `GPS: ${_gpsCoords.lat}, ${_gpsCoords.lng}`
       : 'Location: Southeast Iowa';
@@ -295,9 +359,18 @@ var PlantID = (() => {
       ));
     }
 
+    let contextText = `${location}\nDate: ${App.todayISO()}`;
+    if (plantNetCandidates && plantNetCandidates.length) {
+      const list = plantNetCandidates
+        .map((c, i) => `${i+1}. ${c.scientificName}${c.commonName ? ' (' + c.commonName + ')' : ''} — ${c.score}% confidence`)
+        .join('\n');
+      contextText += `\n\nPlantNet identified this plant as one of the following species (ranked by confidence):\n${list}\nBased on these candidates and the photo, determine which is most likely correct for SE Iowa, then provide property-specific action advice.`;
+    }
+    if (userNotes) contextText += '\n' + userNotes;
+
     const userMessage = [
       ...images,
-      { type: 'text', text: `${location}\nDate: ${App.todayISO()}${userNotes ? '\n' + userNotes : ''}` },
+      { type: 'text', text: contextText },
     ];
 
     const systemPrompt = App.getPropertyCtx().ai_system_prompt || fallbackSystemPrompt();
@@ -353,7 +426,15 @@ var PlantID = (() => {
   function showSpinner(on) {
     const spinner = $('pid-spinner');
     if (spinner) spinner.style.display = on ? 'flex' : 'none';
-    if (on) hideResult();
+    if (on) {
+      hideResult();
+      setSpinnerMsg('Analyzing plant — this takes ~10 seconds…');
+    }
+  }
+
+  function setSpinnerMsg(msg) {
+    const el = $('pid-spinner-msg');
+    if (el) el.textContent = msg;
   }
 
   function hideResult() {
@@ -420,11 +501,15 @@ var PlantID = (() => {
 
     const csvRow    = buildCSVRow(result, zone, notes);
     const isKeystone = result.keystone ? '<span class="badge badge-keystone">⭐ Keystone</span>' : '';
+    const pnBadge = _plantNetCandidates && _plantNetCandidates.length
+      ? `<div class="plantnet-badge">🌿 PlantNet: ${esc(_plantNetCandidates[0].scientificName)} (${_plantNetCandidates[0].score}%)</div>`
+      : '';
 
     container.innerHTML = `
       <div class="result-card">
         <div class="result-name">${esc(result.common_name || 'Unknown plant')}</div>
         <div class="result-latin">${esc(result.latin_name || '')}</div>
+        ${pnBadge}
         <div style="display:flex;gap:6px;flex-wrap:wrap;margin:6px 0">${nativeStatusBadge(result.native_status)} ${isKeystone}</div>
         ${confidenceBarHTML(result.confidence)}
         <div class="action-box ${actionClass(result.recommended_action)}" style="margin-top:10px">

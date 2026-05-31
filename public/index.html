@@ -102,7 +102,7 @@
       <!-- Spinner (hidden until API call) -->
       <div id="pid-spinner" class="spinner-row" style="display:none">
         <div class="spinner"></div>
-        Analyzing plant — this takes ~10 seconds…
+        <span id="pid-spinner-msg">Analyzing plant — this takes ~10 seconds…</span>
       </div>
 
       <!-- Result area -->
@@ -409,6 +409,23 @@
       <div style="display:flex;gap:8px">
         <button class="btn btn-sm" id="api-key-save" type="button">Save key</button>
         <button class="btn btn-sm btn-outline" id="api-key-clear" type="button">Remove key</button>
+      </div>
+    </div>
+
+    <!-- PlantNet API key -->
+    <div class="card">
+      <div class="card-title">🌿 PlantNet API key</div>
+      <div class="alert alert-ok" style="margin-bottom:12px;font-size:11px;line-height:1.6">
+        Free key from <strong>my.plantnet.org</strong> — improves plant ID accuracy by combining specialized plant vision with Claude's property-specific advice. 500 free IDs/day.
+      </div>
+      <div class="field">
+        <label for="plantnet-key-input">API key</label>
+        <input type="password" id="plantnet-key-input" placeholder="2b10…" autocomplete="off">
+      </div>
+      <div id="plantnet-key-status" class="alert alert-warn" style="margin:8px 0"></div>
+      <div style="display:flex;gap:8px">
+        <button class="btn btn-sm" id="plantnet-key-save" type="button">Save key</button>
+        <button class="btn btn-sm btn-outline" id="plantnet-key-clear" type="button">Remove key</button>
       </div>
     </div>
 

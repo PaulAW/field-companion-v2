@@ -310,6 +310,7 @@ input:focus, select:focus, textarea:focus {
 .action-monitor { background: var(--amber-light);  color: var(--amber); }
 .action-unknown { background: #f0f0f0; color: #555; }
 .fun-fact { font-size: 11px; color: var(--label); line-height: 1.5; margin-top: 10px; }
+.plantnet-badge { font-size: 11px; color: var(--green); margin: 4px 0 2px; }
 
 .mono-box {
   background: #e8e0d0;

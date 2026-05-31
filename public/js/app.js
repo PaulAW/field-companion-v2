@@ -1,6 +1,6 @@
 /* app.js — Field Companion core: routing, data loading, IndexedDB, toast, offline */
 
-const APP_BUILD = '2026-05-31-g';   // bump this letter each deploy for version tracking
+const APP_BUILD = '2026-05-31-h';   // bump this letter each deploy for version tracking
 
 const App = (() => {
   let _zones = [];
@@ -161,6 +161,11 @@ const App = (() => {
   function setApiKey(key)     { localStorage.setItem('fc_api_key', key.trim()); }
   function clearApiKey()      { localStorage.removeItem('fc_api_key'); }
 
+  /* ── PlantNet API key ── */
+  function getPlantNetKey()    { return localStorage.getItem('fc_plantnet_key') || ''; }
+  function setPlantNetKey(key) { localStorage.setItem('fc_plantnet_key', key.trim()); }
+  function clearPlantNetKey()  { localStorage.removeItem('fc_plantnet_key'); }
+
   /* ── Confidence threshold ── */
   function getConfidenceThreshold() { return localStorage.getItem('fc_confidence_threshold') || 'Medium'; }
   function setConfidenceThreshold(val) { localStorage.setItem('fc_confidence_threshold', val); }
@@ -229,6 +234,15 @@ const App = (() => {
       ? `${ctx.owner} · ${ctx.location} (${ctx.zip})`
       : 'Field Companion v2.0';
 
+    const pnKey = getPlantNetKey();
+    const pnInput  = document.getElementById('plantnet-key-input');
+    const pnStatus = document.getElementById('plantnet-key-status');
+    if (pnInput)  pnInput.value = pnKey ? '••••••••••••••••' : '';
+    if (pnStatus) {
+      pnStatus.textContent  = pnKey ? '✓ PlantNet key saved — hybrid ID enabled' : '⚠ No PlantNet key — Claude-only ID';
+      pnStatus.className    = pnKey ? 'alert alert-ok' : 'alert alert-warn';
+    }
+
     const threshold = getConfidenceThreshold();
     ['High', 'Medium', 'Any'].forEach(val => {
       const pill = document.getElementById('conf-pill-' + val.toLowerCase());
@@ -273,6 +287,28 @@ const App = (() => {
         renderSettings();
         toast('Confidence threshold updated');
       });
+    });
+
+    document.getElementById('plantnet-key-save').addEventListener('click', () => {
+      const input = document.getElementById('plantnet-key-input');
+      const val = input.value.trim();
+      if (val && !val.startsWith('••')) {
+        setPlantNetKey(val);
+        input.value = '';
+        toast('PlantNet key saved ✓');
+        renderSettings();
+      } else if (!val) {
+        toast('Enter your PlantNet key first');
+      }
+    });
+
+    document.getElementById('plantnet-key-clear').addEventListener('click', () => {
+      if (confirm('Remove PlantNet key? Plant ID will use Claude only.')) {
+        clearPlantNetKey();
+        document.getElementById('plantnet-key-input').value = '';
+        renderSettings();
+        toast('PlantNet key removed');
+      }
     });
   }
 
@@ -401,6 +437,7 @@ const App = (() => {
     getDB, saveObservation, updateObservation, getAllObservations, getObservationsByZone, deleteObservation, getPendingSyncCount, markObservationsSynced,
     getZones, getZone, getTasks, getDriveLinks, getPropertyCtx,
     getApiKey, setApiKey,
+    getPlantNetKey, setPlantNetKey, clearPlantNetKey,
     getConfidenceThreshold, setConfidenceThreshold,
     registerTab, switchTab,
     toast,
