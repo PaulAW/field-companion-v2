@@ -24,6 +24,7 @@ var PropertyMap = (() => {
   let _pendingGeoJSON = null;
   let _labelsVisible  = true;
   let _labelToggleBtn = null;
+  let _labelLayer     = null;
 
   const $ = id => document.getElementById(id);
 
@@ -92,8 +93,9 @@ var PropertyMap = (() => {
     _map.addLayer(_clusterGroup);
 
     /* Zone and property boundary layers */
-    _zoneLayer = L.layerGroup().addTo(_map);
-    _propLayer = L.layerGroup().addTo(_map);
+    _zoneLayer  = L.layerGroup().addTo(_map);
+    _propLayer  = L.layerGroup().addTo(_map);
+    _labelLayer = L.layerGroup().addTo(_map);
 
     /* Boundary drawing via Leaflet.draw */
     setupDrawControl();
@@ -105,19 +107,7 @@ var PropertyMap = (() => {
     addLabelToggleControl();
 
     /* Zoom-level label control (A-5) */
-    _map.on('zoomend', () => {
-      const zoom = _map.getZoom();
-      _zoneLayer.eachLayer(layer => {
-        const toggle = sub => {
-          if (_labelsVisible && zoom >= 17) {
-            sub.openTooltip && sub.openTooltip();
-          } else {
-            sub.closeTooltip && sub.closeTooltip();
-          }
-        };
-        layer.eachLayer ? layer.eachLayer(toggle) : toggle(layer);
-      });
-    });
+    _map.on('zoomend', applyLabelVisibility);
 
     /* Filter bar */
     document.querySelectorAll('.map-filter-btn').forEach(btn => {
@@ -278,36 +268,36 @@ var PropertyMap = (() => {
       if (raw) {
         const zoneMap = JSON.parse(raw);
         const zones   = App.getZones();
-        const zoom = _map ? _map.getZoom() : 17;
+        if (_labelLayer) _labelLayer.clearLayers();
         Object.entries(zoneMap).forEach(([zoneId, geojson]) => {
           const zone       = zones.find(z => z.id === zoneId);
           const color      = zone && zone.urgency === 'high' ? '#e53935' : '#43a047';
           const shortLabel = zone ? zone.id : zoneId;
           const fullLabel  = zone ? `${zone.id} – ${zone.name}` : zoneId;
+
           L.geoJSON(geojson, {
             style: { color, weight: 2, fillColor: color, fillOpacity: 0.15 },
-            onEachFeature: (_, layer) => {
-              layer.bindTooltip(shortLabel, {
-                permanent: true, direction: 'center', className: 'map-zone-tooltip',
-              });
-              // Respect initial zoom/visibility state
-              if (!_labelsVisible || zoom < 15) layer.closeTooltip();
-
-              // A-4: tap/click shows full name for 2 seconds
-              layer.on('click', () => {
-                layer.bindTooltip(fullLabel, {
-                  permanent: false, direction: 'center', className: 'map-zone-tooltip-full',
-                }).openTooltip();
-                setTimeout(() => {
-                  layer.bindTooltip(shortLabel, {
-                    permanent: true, direction: 'center', className: 'map-zone-tooltip',
-                  });
-                  if (!_labelsVisible || _map.getZoom() < 15) layer.closeTooltip();
-                }, 2000);
-              });
-            },
           }).addTo(_zoneLayer);
+
+          // A-4: DivIcon label marker at polygon centroid — no Leaflet tooltip chrome
+          const center = polygonCentroid(geojson);
+          if (center && _labelLayer) {
+            const makeIcon = txt => L.divIcon({
+              html: `<div class="zone-label-icon">${esc(txt)}</div>`,
+              className: '',
+              iconSize: [0, 0],
+              iconAnchor: [0, 0],
+            });
+            const marker = L.marker(center, { icon: makeIcon(shortLabel), interactive: true });
+            marker.on('click', e => {
+              L.DomEvent.stopPropagation(e);
+              marker.setIcon(makeIcon(fullLabel));
+              setTimeout(() => marker.setIcon(makeIcon(shortLabel)), 2000);
+            });
+            marker.addTo(_labelLayer);
+          }
         });
+        applyLabelVisibility();
       }
     } catch(e) {}
   }
@@ -463,18 +453,29 @@ var PropertyMap = (() => {
   }
 
   function applyLabelVisibility() {
-    if (!_map) return;
-    const zoom = _map.getZoom();
-    _zoneLayer.eachLayer(layer => {
-      const toggle = sub => {
-        if (_labelsVisible && zoom >= 17) {
-          sub.openTooltip && sub.openTooltip();
-        } else {
-          sub.closeTooltip && sub.closeTooltip();
-        }
-      };
-      layer.eachLayer ? layer.eachLayer(toggle) : toggle(layer);
-    });
+    if (!_map || !_labelLayer) return;
+    const show = _labelsVisible && _map.getZoom() >= 17;
+    if (show && !_map.hasLayer(_labelLayer)) _map.addLayer(_labelLayer);
+    else if (!show && _map.hasLayer(_labelLayer)) _map.removeLayer(_labelLayer);
+  }
+
+  /* Compute polygon centroid as average of outer ring vertices */
+  function polygonCentroid(geojson) {
+    try {
+      let ring;
+      const g = geojson.geometry || geojson;
+      if (g.type === 'Polygon') ring = g.coordinates[0];
+      else if (g.type === 'MultiPolygon') ring = g.coordinates[0][0];
+      else if (g.type === 'Feature') return polygonCentroid(g.geometry);
+      else if (g.type === 'FeatureCollection') return polygonCentroid(g.features[0]);
+      else return null;
+      if (!ring || ring.length < 3) return null;
+      const pts = ring[0][0] === ring[ring.length - 1][0] && ring[0][1] === ring[ring.length - 1][1]
+        ? ring.slice(0, -1) : ring; // drop closing duplicate
+      let sumLat = 0, sumLng = 0;
+      pts.forEach(([lng, lat]) => { sumLat += lat; sumLng += lng; });
+      return [sumLat / pts.length, sumLng / pts.length];
+    } catch(e) { return null; }
   }
 
   function esc(s) {
