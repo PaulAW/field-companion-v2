@@ -249,8 +249,8 @@ var PlantID = (() => {
         console.warn('PlantNet failed:', e.status, e.message, e);
         if (e.status === 429) {
           App.toast('PlantNet daily limit reached — using Claude only');
-        } else if (e.status === 401) {
-          App.toast('PlantNet key invalid — check Settings');
+        } else if (e.status === 401 || e.status === 403) {
+          App.toast('PlantNet key rejected — re-enter key in Settings', 4000);
         } else {
           App.toast('PlantNet unavailable — using Claude only');
         }
@@ -334,7 +334,7 @@ var PlantID = (() => {
     form.append('organs', 'auto');
 
     const res = await fetch(
-      `https://my-api.plantnet.org/v2/identify/all?api-key=${encodeURIComponent(apiKey)}&nb-results=3&lang=en`,
+      `https://my-api.plantnet.org/v2/identify/all?include-related-images=false&no-reject=false&nb-results=3&lang=en&api-key=${encodeURIComponent(apiKey.trim())}`,
       { method: 'POST', body: form }
     );
 
