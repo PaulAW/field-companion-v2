@@ -123,8 +123,9 @@ var Logger = (() => {
       const ctx = App.getPropertyCtx();
       const center = ctx.map_center || {};
       MapPicker.open({
-        lat: _gpsCoords ? _gpsCoords.lat : (center.lat || 41.0686),
-        lng: _gpsCoords ? _gpsCoords.lng : (center.lng || -91.9694),
+        lat:  _gpsCoords ? _gpsCoords.lat : (center.lat || 41.0686),
+        lng:  _gpsCoords ? _gpsCoords.lng : (center.lng || -91.9694),
+        zone: $('log-zone').value || null,
         onSelect: coords => setGPSCoords(coords),
       });
     }

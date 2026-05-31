@@ -128,8 +128,9 @@ var PlantID = (() => {
       const ctx = App.getPropertyCtx();
       const center = ctx.map_center || {};
       MapPicker.open({
-        lat: _gpsCoords ? _gpsCoords.lat : (center.lat || 41.0686),
-        lng: _gpsCoords ? _gpsCoords.lng : (center.lng || -91.9694),
+        lat:  _gpsCoords ? _gpsCoords.lat : (center.lat || 41.0686),
+        lng:  _gpsCoords ? _gpsCoords.lng : (center.lng || -91.9694),
+        zone: $('pid-zone').value || null,
         onSelect: coords => setGPSCoords(coords),
       });
     }
@@ -240,12 +241,19 @@ var PlantID = (() => {
 
     const pnKey = App.getPlantNetKey();
     if (pnKey && navigator.onLine) {
-      setSpinnerMsg('Step 1 of 2: Identifying species…');
+      setSpinnerMsg('Step 1 of 2: Identifying species via PlantNet…');
       try {
         _plantNetCandidates = await callPlantNetAPI(pnKey, []);
+        console.log('PlantNet candidates:', _plantNetCandidates);
       } catch(e) {
-        console.warn('PlantNet failed, falling back to Claude-only:', e);
-        if (e.status === 429) App.toast('PlantNet limit reached — using Claude only');
+        console.warn('PlantNet failed:', e.status, e.message, e);
+        if (e.status === 429) {
+          App.toast('PlantNet daily limit reached — using Claude only');
+        } else if (e.status === 401) {
+          App.toast('PlantNet key invalid — check Settings');
+        } else {
+          App.toast('PlantNet unavailable — using Claude only');
+        }
         _plantNetCandidates = null;
       }
       setSpinnerMsg('Step 2 of 2: Getting property advice…');
@@ -275,7 +283,7 @@ var PlantID = (() => {
       try {
         _plantNetCandidates = await callPlantNetAPI(pnKey, _supplementalPhotos);
       } catch(e) {
-        console.warn('PlantNet re-identify failed:', e);
+        console.warn('PlantNet re-identify failed:', e.status, e.message, e);
         _plantNetCandidates = null;
       }
       setSpinnerMsg('Step 2 of 2: Getting property advice…');
