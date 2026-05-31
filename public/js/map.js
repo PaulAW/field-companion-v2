@@ -487,19 +487,34 @@ var PropertyMap = (() => {
     } catch(e) { return null; }
   }
 
-  /* ── Zone label position persistence ── */
+  /* ── Zone label position persistence (stored inside the boundary GeoJSON so it syncs) ── */
   function _getLabelPos(zoneId) {
     try {
-      const stored = JSON.parse(localStorage.getItem('fc_zone_label_positions') || '{}');
-      return stored[zoneId] || null;
+      const raw = localStorage.getItem('fc_zone_boundaries');
+      if (raw) {
+        const zoneMap = JSON.parse(raw);
+        const pos = zoneMap[zoneId] && zoneMap[zoneId].properties && zoneMap[zoneId].properties.labelPos;
+        if (pos) return pos;
+      }
+      // Fallback: old separate key (pre-sync format)
+      const old = JSON.parse(localStorage.getItem('fc_zone_label_positions') || '{}');
+      return old[zoneId] || null;
     } catch(e) { return null; }
   }
 
   function _saveLabelPos(zoneId, latlng) {
     try {
-      const stored = JSON.parse(localStorage.getItem('fc_zone_label_positions') || '{}');
-      stored[zoneId] = latlng;
-      localStorage.setItem('fc_zone_label_positions', JSON.stringify(stored));
+      const raw = localStorage.getItem('fc_zone_boundaries');
+      if (!raw) return;
+      const zoneMap = JSON.parse(raw);
+      if (!zoneMap[zoneId]) return;
+      if (!zoneMap[zoneId].properties) zoneMap[zoneId].properties = {};
+      zoneMap[zoneId].properties.labelPos = latlng;
+      localStorage.setItem('fc_zone_boundaries', JSON.stringify(zoneMap));
+      // Push to cloud so other devices get the updated label position
+      if (window.Auth && Auth.isSignedIn() && window.Sync) {
+        Sync.pushBoundaries().catch(console.warn);
+      }
     } catch(e) {}
   }
 
