@@ -677,33 +677,22 @@ input:focus, select:focus, textarea:focus {
 }
 .map-locate-btn:active { background: #f0f0f0; }
 
-/* Zone polygon tooltips — override Leaflet defaults */
+/* Zone polygon tooltips — override all Leaflet defaults */
 .leaflet-tooltip.map-zone-tooltip,
-.leaflet-tooltip.map-zone-tooltip-full {
-  background: rgba(20,20,20,.78);
-  color: #fff;
-  border: none;
-  border-radius: 4px;
-  font-size: 11px;
-  font-weight: 600;
-  padding: 2px 7px;
-  white-space: nowrap;
-  box-shadow: none;
-}
-.leaflet-tooltip.map-zone-tooltip::before,
-.leaflet-tooltip.map-zone-tooltip-full::before { display: none; }
-/* fallback selectors for browsers where className is on inner element */
+.leaflet-tooltip.map-zone-tooltip-full,
 .map-zone-tooltip,
 .map-zone-tooltip-full {
-  background: rgba(20,20,20,.78);
-  color: #fff;
-  border: none;
-  border-radius: 4px;
-  font-size: 11px;
-  font-weight: 600;
-  padding: 2px 7px;
-  white-space: nowrap;
-  box-shadow: none;
+  background: rgba(20,20,20,.82) !important;
+  color: #fff !important;
+  border: none !important;
+  border-radius: 4px !important;
+  font-size: 11px !important;
+  font-weight: 600 !important;
+  padding: 2px 7px !important;
+  white-space: nowrap !important;
+  box-shadow: none !important;
 }
+.leaflet-tooltip.map-zone-tooltip::before,
+.leaflet-tooltip.map-zone-tooltip-full::before,
 .map-zone-tooltip::before,
-.map-zone-tooltip-full::before { display: none; }
+.map-zone-tooltip-full::before { display: none !important; }

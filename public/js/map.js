@@ -352,7 +352,11 @@ var PropertyMap = (() => {
     if (zoneSel) {
       zoneSel.innerHTML = App.getZones()
         .map(z => `<option value="${z.id}">Zone ${z.id} – ${z.name}</option>`)
-        .join('');
+        .join('') + '<option value="__new__">+ New zone…</option>';
+      zoneSel.addEventListener('change', () => {
+        const newRow = $('map-boundary-new-zone-row');
+        if (newRow) newRow.style.display = zoneSel.value === '__new__' ? 'block' : 'none';
+      });
     }
 
     /* Reset radio to property */
@@ -377,7 +381,12 @@ var PropertyMap = (() => {
       localStorage.setItem('fc_property_boundary', JSON.stringify(_pendingGeoJSON));
       App.toast('Property boundary saved ✓');
     } else {
-      const zoneId  = ($('map-boundary-zone') || {}).value;
+      let zoneId = ($('map-boundary-zone') || {}).value;
+      if (zoneId === '__new__') {
+        const newId = ($('map-boundary-new-zone-id') || {}).value.trim().toUpperCase();
+        if (!newId) { App.toast('Enter a zone ID'); return; }
+        zoneId = newId;
+      }
       if (!zoneId) { App.toast('Select a zone'); return; }
       const existing = JSON.parse(localStorage.getItem('fc_zone_boundaries') || '{}');
       existing[zoneId] = _pendingGeoJSON;
