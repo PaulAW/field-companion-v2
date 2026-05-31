@@ -279,20 +279,29 @@ var PropertyMap = (() => {
             style: { color, weight: 2, fillColor: color, fillOpacity: 0.15 },
           }).addTo(_zoneLayer);
 
-          // A-4: DivIcon label marker at polygon centroid — no Leaflet tooltip chrome
-          const center = polygonCentroid(geojson);
+          // A-4: DivIcon label marker — draggable, position persisted per zone
+          const storedPos = _getLabelPos(zoneId);
+          const center = storedPos || polygonCentroid(geojson);
           if (center && _labelLayer) {
-            const makeIcon = txt => L.divIcon({
-              html: `<div class="zone-label-icon">${esc(txt)}</div>`,
+            const makeIcon = (txt, hint) => L.divIcon({
+              html: `<div class="zone-label-icon" title="${hint || ''}">${esc(txt)}</div>`,
               className: '',
               iconSize: [0, 0],
               iconAnchor: [0, 0],
             });
-            const marker = L.marker(center, { icon: makeIcon(shortLabel), interactive: true });
+            const marker = L.marker(center, {
+              icon: makeIcon(shortLabel, 'Drag to reposition'),
+              interactive: true,
+              draggable: true,
+            });
             marker.on('click', e => {
               L.DomEvent.stopPropagation(e);
               marker.setIcon(makeIcon(fullLabel));
-              setTimeout(() => marker.setIcon(makeIcon(shortLabel)), 2000);
+              setTimeout(() => marker.setIcon(makeIcon(shortLabel, 'Drag to reposition')), 2000);
+            });
+            marker.on('dragend', () => {
+              const p = marker.getLatLng();
+              _saveLabelPos(zoneId, [p.lat, p.lng]);
             });
             marker.addTo(_labelLayer);
           }
@@ -476,6 +485,22 @@ var PropertyMap = (() => {
       pts.forEach(([lng, lat]) => { sumLat += lat; sumLng += lng; });
       return [sumLat / pts.length, sumLng / pts.length];
     } catch(e) { return null; }
+  }
+
+  /* ── Zone label position persistence ── */
+  function _getLabelPos(zoneId) {
+    try {
+      const stored = JSON.parse(localStorage.getItem('fc_zone_label_positions') || '{}');
+      return stored[zoneId] || null;
+    } catch(e) { return null; }
+  }
+
+  function _saveLabelPos(zoneId, latlng) {
+    try {
+      const stored = JSON.parse(localStorage.getItem('fc_zone_label_positions') || '{}');
+      stored[zoneId] = latlng;
+      localStorage.setItem('fc_zone_label_positions', JSON.stringify(stored));
+    } catch(e) {}
   }
 
   function esc(s) {
