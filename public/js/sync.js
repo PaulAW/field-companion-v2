@@ -164,7 +164,21 @@ var Sync = (() => {
       if (zoneRows.length) {
         const existing = JSON.parse(localStorage.getItem('fc_zone_boundaries') || '{}');
         zoneRows.forEach(r => {
-          existing[r.zone_id] = JSON.parse(r.geojson);
+          const cloudGeoJSON = JSON.parse(r.geojson);
+          const localGeoJSON = existing[r.zone_id];
+          // Preserve whichever labelPos has the newer timestamp (last-write-wins)
+          if (localGeoJSON?.properties?.labelPos && cloudGeoJSON?.properties?.labelPos) {
+            const localT = localGeoJSON.properties.labelPos.t || 0;
+            const cloudT = cloudGeoJSON.properties.labelPos.t || 0;
+            if (localT > cloudT) {
+              if (!cloudGeoJSON.properties) cloudGeoJSON.properties = {};
+              cloudGeoJSON.properties.labelPos = localGeoJSON.properties.labelPos;
+            }
+          } else if (localGeoJSON?.properties?.labelPos && !cloudGeoJSON?.properties?.labelPos) {
+            if (!cloudGeoJSON.properties) cloudGeoJSON.properties = {};
+            cloudGeoJSON.properties.labelPos = localGeoJSON.properties.labelPos;
+          }
+          existing[r.zone_id] = cloudGeoJSON;
         });
         localStorage.setItem('fc_zone_boundaries', JSON.stringify(existing));
       }
@@ -182,8 +196,8 @@ var Sync = (() => {
   async function fullSync() {
     await push();
     await pull();
-    await pushBoundaries();
-    await pullBoundaries();
+    await pullBoundaries(); // pull first so we have cloud label positions before merging
+    await pushBoundaries(); // then push, preserving locally-newer positions
   }
 
   return { push, pull, pushBoundaries, pullBoundaries, fullSync };
