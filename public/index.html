@@ -129,13 +129,13 @@
 
       <!-- Sub-tab buttons -->
       <div class="subtabs">
-        <button class="subtab-btn log-subtab active" data-mode="new">+ New entry</button>
-        <button class="subtab-btn log-subtab" data-mode="history">📋 History</button>
+        <button class="subtab-btn log-subtab" data-mode="new">+ New entry</button>
+        <button class="subtab-btn log-subtab active" data-mode="history">📋 History</button>
         <button class="subtab-btn log-subtab" data-mode="export">⬇️ Export / Import</button>
       </div>
 
       <!-- NEW ENTRY panel -->
-      <div id="log-panel-new">
+      <div id="log-panel-new" style="display:none">
         <div class="card">
           <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:2px">
             <div class="card-title" id="log-form-title" style="margin-bottom:0">New observation</div>
@@ -233,7 +233,7 @@
       </div><!-- /log-panel-new -->
 
       <!-- HISTORY panel -->
-      <div id="log-panel-history" style="display:none">
+      <div id="log-panel-history">
         <div id="log-sync-status" style="display:none;margin-bottom:8px;font-size:12px;padding:6px 10px;border-radius:6px"></div>
         <div class="field" style="margin-bottom:12px">
           <label for="log-history-zone-filter">Filter by zone</label>

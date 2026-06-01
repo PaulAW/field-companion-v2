@@ -279,6 +279,16 @@ var Tasks = (() => {
       const zone   = (document.getElementById('ats-zone') || {}).value || '';
       const urgent = (document.getElementById('ats-urgent') || {}).checked || false;
       if (!text.trim()) { App.toast('Enter a task description'); return; }
+
+      // Duplicate check — same text in same season
+      const normalise = s => s.toLowerCase().replace(/\s+/g,' ').trim();
+      const dup = _tasks.find(t =>
+        t.season === season && normalise(t.text) === normalise(text)
+      );
+      if (dup) {
+        if (!confirm(`A very similar task already exists in ${seasonLabel(season)}:\n\n"${dup.text}"\n\nSave anyway?`)) return;
+      }
+
       await addTask(season, text, zone, urgent, prefill.observation_id || null, prefill.observation_name || null);
       close();
     });
@@ -600,5 +610,9 @@ var Tasks = (() => {
       .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
   }
 
-  return { init, openAddTaskSheet };
+  function getTasksForZone(zoneId) {
+    return _tasks.filter(t => t.zone && t.zone.split(',').map(z => z.trim()).includes(zoneId));
+  }
+
+  return { init, openAddTaskSheet, getTasksForZone };
 })();

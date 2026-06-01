@@ -422,6 +422,25 @@ input:focus, select:focus, textarea:focus {
 }
 .zone-detail-section li:last-child { border-bottom: none; }
 
+/* ── Zone task rows (inside zone detail) ── */
+.zone-task-row {
+  display: flex; align-items: center; gap: 6px;
+  padding: 5px 0; border-bottom: 1px solid #ede6da;
+  font-size: 12px; color: var(--text);
+}
+.zone-task-row:last-child { border-bottom: none; }
+.zone-task-done { opacity: 0.5; }
+.zone-task-done .zone-task-text { text-decoration: line-through; color: var(--muted); }
+.zone-task-check {
+  width: 14px; height: 14px; border-radius: 50%;
+  border: 2px solid var(--border); flex-shrink: 0;
+}
+.zone-task-check.done {
+  background: var(--green); border-color: var(--green);
+}
+.zone-task-season { flex-shrink: 0; font-size: 13px; }
+.zone-task-text { flex: 1; line-height: 1.4; }
+
 /* ── Tasks ── */
 .season-block { margin-bottom: 8px; }
 .season-header {
@@ -713,8 +732,8 @@ input:focus, select:focus, textarea:focus {
 .add-task-row { padding: 8px 12px 4px; }
 .add-task-btn { color: var(--green); border-color: var(--green); }
 .task-item-editing { flex-direction: column; align-items: stretch; padding: 10px 12px; background: #f9f9f9; }
-.task-edit-btn { opacity: 0; transition: opacity 0.15s; flex-shrink: 0; }
-.task-item:hover .task-edit-btn { opacity: 1; }
+.task-edit-btn { opacity: 0.35; transition: opacity 0.15s; flex-shrink: 0; }
+.task-item:hover .task-edit-btn, .task-item:focus-within .task-edit-btn { opacity: 1; }
 
 /* Naturalized status — teal */
 .badge-naturalized { background: #0097a7; color: #fff; }

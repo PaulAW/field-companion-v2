@@ -1,7 +1,7 @@
 /* logger.js — Manual observation entry, history view, CSV export */
 
 var Logger = (() => {
-  let _mode = 'new';   // 'new' | 'history' | 'export'
+  let _mode = 'history';   // 'new' | 'history' | 'export'
   let _gpsCoords = null;
   let _observations = [];
   let _filterZone = '';

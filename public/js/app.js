@@ -1,6 +1,6 @@
 /* app.js — Field Companion core: routing, data loading, IndexedDB, toast, offline */
 
-const APP_BUILD = '2026-06-01-e';   // bump this letter each deploy for version tracking
+const APP_BUILD = '2026-06-01-f';   // bump this letter each deploy for version tracking
 
 const App = (() => {
   let _zones = [];
@@ -91,7 +91,8 @@ const App = (() => {
       getReq.onsuccess = e => {
         const existing = e.target.result;
         if (!existing) { reject(new Error('Observation not found')); return; }
-        const updated = { ...existing, ...data, modified_at: Date.now() };
+        // Clear cloud_id so the updated record gets re-pushed to cloud
+        const updated = { ...existing, ...data, modified_at: Date.now(), cloud_id: null };
         const putReq = store.put(updated);
         putReq.onsuccess = () => {
           if (window.Auth && Auth.isSignedIn() && window.Sync) {
