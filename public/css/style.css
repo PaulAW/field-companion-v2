@@ -732,8 +732,8 @@ input:focus, select:focus, textarea:focus {
 .add-task-row { padding: 8px 12px 4px; }
 .add-task-btn { color: var(--green); border-color: var(--green); }
 .task-item-editing { flex-direction: column; align-items: stretch; padding: 10px 12px; background: #f9f9f9; }
-.task-edit-btn { opacity: 0.35; transition: opacity 0.15s; flex-shrink: 0; }
-.task-item:hover .task-edit-btn, .task-item:focus-within .task-edit-btn { opacity: 1; }
+.task-edit-btn { opacity: 0.6; transition: opacity 0.15s; flex-shrink: 0; }
+.task-item:hover .task-edit-btn, .task-item:focus-within .task-edit-btn, .task-edit-btn:active { opacity: 1; }
 
 /* Naturalized status — teal */
 .badge-naturalized { background: #0097a7; color: #fff; }

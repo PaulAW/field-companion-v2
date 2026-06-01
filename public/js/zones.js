@@ -232,5 +232,11 @@ var Zones = (() => {
       .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
   }
 
-  return { init };
+  function showZone(zoneId) {
+    App.switchTab('zones');
+    const zone = mergeZone(App.getZones().find(z => z.id === zoneId) || { id: zoneId });
+    renderDetail(zone);
+  }
+
+  return { init, showZone };
 })();

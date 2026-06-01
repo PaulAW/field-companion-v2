@@ -27,6 +27,7 @@ var PropertyMap = (() => {
   let _labelsVisible  = true;
   let _labelToggleBtn = null;
   let _labelLayer     = null;
+  let _zoneBoundsMap  = {};   // zoneId → L.LatLngBounds, for flyToZone()
 
   const $ = id => document.getElementById(id);
 
@@ -269,6 +270,7 @@ var PropertyMap = (() => {
         <br><span style="font-size:10px;color:#888">${esc(date)}</span>
         ${o.action_needed && !o.removed ? `<br><span style="font-size:11px;color:#555">→ ${esc(o.action_needed)}</span>` : ''}
         ${archiveAction}
+        ${!o.removed ? `<br><a href="#" class="popup-edit-link" data-id="${o.id}" style="font-size:11px;color:var(--green)">✏️ Edit entry</a>` : ''}
         ${!o.removed ? `<br><a href="#" class="popup-add-task-link" data-id="${o.id}" data-name="${esc(o.common_name)}" data-zone="${esc(o.zone || '')}" style="font-size:11px;color:var(--green)">＋ Add task for this plant</a>` : ''}
       </div>`;
   }
@@ -308,14 +310,27 @@ var PropertyMap = (() => {
         const id   = parseInt(a.dataset.id);
         const name = a.dataset.name;
         const zone = a.dataset.zone;
+        const obs  = _allObs.find(o => o.id === id);
         _map.closePopup();
         if (window.Tasks && Tasks.openAddTaskSheet) {
           Tasks.openAddTaskSheet({
             observation_id:   id,
             observation_name: name + (zone ? ' · Zone ' + zone : ''),
             zone,
+            text:             (obs && obs.action_needed) ? obs.action_needed : '',
           });
         }
+      });
+    });
+
+    document.querySelectorAll('.popup-edit-link').forEach(a => {
+      a.addEventListener('click', e => {
+        e.preventDefault();
+        const id  = parseInt(a.dataset.id);
+        const obs = _allObs.find(o => o.id === id);
+        if (!obs || !window.Logger) return;
+        _map.closePopup();
+        Logger.editObservation(obs);
       });
     });
   }
@@ -364,10 +379,11 @@ var PropertyMap = (() => {
           const shortLabel = zone ? zone.id : zoneId;
           const fullLabel  = zone ? `${zone.id} – ${zone.name}` : zoneId;
 
-          L.geoJSON(geojson, {
+          const zoneGeoLayer = L.geoJSON(geojson, {
             style: { color, weight: 2, fillColor: color, fillOpacity: 0.15 },
             interactive: false,
           }).addTo(_zoneLayer);
+          try { _zoneBoundsMap[zoneId] = zoneGeoLayer.getBounds(); } catch(e) {}
 
           // A-4: DivIcon label marker — draggable, position persisted per zone
           const storedPos = _getLabelPos(zoneId);
@@ -478,6 +494,9 @@ var PropertyMap = (() => {
       }
       if (!zoneId) { App.toast('Select a zone'); return; }
       const existing = JSON.parse(localStorage.getItem('fc_zone_boundaries') || '{}');
+      if (existing[zoneId]) {
+        if (!confirm(`Zone ${zoneId} already has a boundary drawn.\n\nReplace it with this new boundary?`)) return;
+      }
       existing[zoneId] = _pendingGeoJSON;
       localStorage.setItem('fc_zone_boundaries', JSON.stringify(existing));
       App.toast(`Zone ${zoneId} boundary saved ✓`);
@@ -703,5 +722,21 @@ var PropertyMap = (() => {
     if (_initialized) loadBoundaries();
   }
 
-  return { init, refreshIfVisible, reloadBoundaries };
+  /* Fly to a zone boundary — called from Tasks zone-group view */
+  function flyToZone(zoneId) {
+    App.switchTab('map');
+    // Allow tab switch to render, then pan
+    setTimeout(() => {
+      if (!_map) return;
+      if (_initialized) _map.invalidateSize();
+      const bounds = _zoneBoundsMap[zoneId];
+      if (bounds && bounds.isValid()) {
+        _map.fitBounds(bounds, { padding: [40, 40], maxZoom: 19 });
+      } else {
+        App.toast(`No boundary drawn for Zone ${zoneId} yet`);
+      }
+    }, 150);
+  }
+
+  return { init, refreshIfVisible, reloadBoundaries, flyToZone };
 })();

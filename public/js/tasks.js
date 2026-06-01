@@ -10,6 +10,7 @@ var Tasks = (() => {
   let _cloudMode   = false;
   let _loading     = false;
   let _editingId   = null;   // task id currently in edit mode (null = none)
+  let _viewMode    = 'season';  // 'season' | 'zone'
 
   const $ = id => document.getElementById(id);
 
@@ -384,12 +385,119 @@ var Tasks = (() => {
   function render() {
     const container = $('tasks-container');
     if (!container) return;
-    const curSeason = currentSeasonId();
-    container.innerHTML = SEASONS.map(s => {
-      const isOpen = s.id === curSeason;
-      return seasonOuterHTML(s, isOpen);
-    }).join('');
-    SEASONS.forEach(s => wireSeasonEvents(s.id));
+
+    const toggleHTML = `
+      <div style="display:flex;gap:6px;align-items:center;margin-bottom:12px">
+        <span style="font-size:11px;color:var(--muted);flex-shrink:0">Group by:</span>
+        <button class="btn btn-sm tasks-view-toggle ${_viewMode==='season' ? '' : 'btn-outline'}" data-view="season">Season</button>
+        <button class="btn btn-sm tasks-view-toggle ${_viewMode==='zone'   ? '' : 'btn-outline'}" data-view="zone">Zone</button>
+      </div>`;
+
+    if (_viewMode === 'zone') {
+      container.innerHTML = toggleHTML + zoneGroupsHTML();
+      container.querySelectorAll('.tasks-view-toggle').forEach(btn =>
+        btn.addEventListener('click', () => { _viewMode = btn.dataset.view; render(); })
+      );
+      wireZoneGroupEvents();
+    } else {
+      const curSeason = currentSeasonId();
+      container.innerHTML = toggleHTML + SEASONS.map(s => seasonOuterHTML(s, s.id === curSeason)).join('');
+      container.querySelectorAll('.tasks-view-toggle').forEach(btn =>
+        btn.addEventListener('click', () => { _viewMode = btn.dataset.view; render(); })
+      );
+      SEASONS.forEach(s => wireSeasonEvents(s.id));
+    }
+  }
+
+  /* ── Zone group view ── */
+  function zoneGroupsHTML() {
+    const allZones   = App.getZones();
+    const zoneIds    = [...new Set(_tasks.map(t => t.zone || ''))].sort();
+    // Build ordered list: known zones first (in A-B-C order), then '' last
+    const knownIds   = allZones.map(z => z.id);
+    const ordered    = [
+      ...knownIds.filter(id => zoneIds.includes(id)),
+      ...zoneIds.filter(id => id && !knownIds.includes(id)),
+    ];
+    if (zoneIds.includes('')) ordered.push('');
+
+    if (ordered.length === 0) return '<p style="color:var(--muted);font-size:13px">No tasks yet.</p>';
+
+    return ordered.map((zId, i) => zoneGroupHTML(zId, allZones, i === 0)).join('');
+  }
+
+  function zoneGroupHTML(zoneId, allZones, isOpen) {
+    const zone    = allZones.find(z => z.id === zoneId);
+    const label   = zoneId ? `Zone ${zoneId}${zone ? ' — ' + zone.name : ''}` : 'Any Zone';
+    const tasks   = zoneId
+      ? _tasks.filter(t => t.zone && t.zone.split(',').map(s => s.trim()).includes(zoneId))
+      : _tasks.filter(t => !t.zone);
+    const total   = tasks.length;
+    const done    = tasks.filter(t => t.completed).length;
+    const urgent  = tasks.filter(t => t.urgent && !t.completed).length;
+    const groupId = zoneId || '__none__';
+
+    return `<div class="season-block" id="zgroup-block-${groupId}">
+      <div class="season-header ${isOpen ? 'open' : ''}" id="zgroup-hd-${groupId}">
+        <div style="flex:1;min-width:0">
+          <div class="season-title" style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(label)}</div>
+          ${urgent > 0 ? `<span class="badge badge-urgent">${urgent} urgent</span>` : ''}
+        </div>
+        <div style="display:flex;align-items:center;gap:6px;flex-shrink:0">
+          ${zoneId ? `<button class="btn btn-sm btn-outline" data-zgroup-zones="${esc(zoneId)}" style="font-size:10px;padding:2px 7px">Detail</button>` : ''}
+          ${zoneId ? `<button class="btn btn-sm btn-outline" data-zgroup-map="${esc(zoneId)}" style="font-size:10px;padding:2px 7px">📍 Map</button>` : ''}
+          <span class="season-progress" id="zgroup-prog-${groupId}">${done}/${total}</span>
+          <span class="season-chevron">▶</span>
+        </div>
+      </div>
+      <div class="progress-bar" style="${isOpen ? '' : 'display:none'}" id="zgroup-progbar-${groupId}">
+        <div class="progress-fill" style="width:${total ? Math.round(done/total*100) : 0}%"></div>
+      </div>
+      <div class="season-body ${isOpen ? 'open' : ''}" id="zgroup-body-${groupId}">
+        <div id="zgroup-tasks-${groupId}">
+          ${tasks.map(t => taskItemHTML(t)).join('')}
+        </div>
+        ${total === 0 ? '<p style="font-size:12px;color:var(--muted);padding:4px 0">No tasks for this zone.</p>' : ''}
+      </div>
+    </div>`;
+  }
+
+  function wireZoneGroupEvents() {
+    document.querySelectorAll('[id^="zgroup-hd-"]').forEach(hd => {
+      const groupId = hd.id.replace('zgroup-hd-', '');
+      const body    = $(`zgroup-body-${groupId}`);
+      const prog    = $(`zgroup-progbar-${groupId}`);
+      if (!body) return;
+      // Collapse/expand on header click (but not on buttons)
+      hd.addEventListener('click', e => {
+        if (e.target.closest('button')) return;
+        const isOpen = body.classList.contains('open');
+        body.classList.toggle('open', !isOpen);
+        hd.classList.toggle('open', !isOpen);
+        if (prog) prog.style.display = isOpen ? 'none' : '';
+      });
+      // Wire task rows
+      const taskList = $(`zgroup-tasks-${groupId}`);
+      if (taskList) taskList.querySelectorAll('.task-item[data-task-id]').forEach(row => wireTaskEvents(row));
+    });
+
+    // Zone detail buttons
+    document.querySelectorAll('[data-zgroup-zones]').forEach(btn => {
+      btn.addEventListener('click', e => {
+        e.stopPropagation();
+        const zId = btn.dataset.zgroupZones;
+        if (window.Zones && Zones.showZone) Zones.showZone(zId);
+      });
+    });
+
+    // Map buttons
+    document.querySelectorAll('[data-zgroup-map]').forEach(btn => {
+      btn.addEventListener('click', e => {
+        e.stopPropagation();
+        const zId = btn.dataset.zgroupMap;
+        if (window.PropertyMap && PropertyMap.flyToZone) PropertyMap.flyToZone(zId);
+      });
+    });
   }
 
   function seasonOuterHTML(s, isOpen) {
