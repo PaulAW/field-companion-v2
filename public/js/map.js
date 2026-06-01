@@ -216,10 +216,10 @@ var PropertyMap = (() => {
 
       const color = PIN_COLORS[o.native_status] || PIN_COLORS['Unknown'];
       const marker = L.circleMarker([lat, lng], {
-        radius: 8,
+        radius: 10,
         fillColor: color,
         color: '#fff',
-        weight: 2,
+        weight: 2.5,
         opacity: 1,
         fillOpacity: 0.9,
       });
@@ -270,6 +270,7 @@ var PropertyMap = (() => {
       if (raw) {
         L.geoJSON(JSON.parse(raw), {
           style: { color: '#ffffff', weight: 2.5, dashArray: '8 5', fillOpacity: 0.04 },
+          interactive: false,
         }).addTo(_propLayer);
       }
     } catch(e) {}
@@ -289,6 +290,7 @@ var PropertyMap = (() => {
 
           L.geoJSON(geojson, {
             style: { color, weight: 2, fillColor: color, fillOpacity: 0.15 },
+            interactive: false,
           }).addTo(_zoneLayer);
 
           // A-4: DivIcon label marker — draggable, position persisted per zone
