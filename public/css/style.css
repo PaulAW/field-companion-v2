@@ -311,6 +311,10 @@ input:focus, select:focus, textarea:focus {
 .action-unknown { background: #f0f0f0; color: #555; }
 .fun-fact { font-size: 11px; color: var(--label); line-height: 1.5; margin-top: 10px; }
 .plantnet-badge { font-size: 11px; color: var(--green); margin: 4px 0 2px; }
+.organ-pills { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 4px; }
+.organ-pill { padding: 7px 13px; border: 1.5px solid var(--border); border-radius: 20px; background: #fff; font-size: 13px; cursor: pointer; user-select: none; transition: background 0.15s, border-color 0.15s, color 0.15s; }
+.organ-pill.selected { background: var(--green); color: #fff; border-color: var(--green); font-weight: 600; }
+.organ-pill:active { opacity: 0.8; }
 
 .mono-box {
   background: #e8e0d0;

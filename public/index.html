@@ -60,6 +60,19 @@
           <p id="pid-upload-hint" style="display:none"></p>
         </div>
 
+        <!-- Organ selector — shown after photo is selected -->
+        <div id="pid-organ-section" class="field" style="display:none">
+          <label>What part of the plant did you photograph? <span style="color:var(--amber)">*</span></label>
+          <div class="organ-pills" id="pid-organ-pills">
+            <button type="button" class="organ-pill" data-organ="leaf">🍃 Leaf</button>
+            <button type="button" class="organ-pill" data-organ="flower">🌸 Flower</button>
+            <button type="button" class="organ-pill" data-organ="fruit">🍇 Fruit</button>
+            <button type="button" class="organ-pill" data-organ="bark">🌳 Bark</button>
+            <button type="button" class="organ-pill" data-organ="habit">🌿 Habit</button>
+            <button type="button" class="organ-pill" data-organ="other">❓ Other</button>
+          </div>
+        </div>
+
         <!-- Zone + GPS row -->
         <div class="row2">
           <div class="field">

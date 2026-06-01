@@ -6,15 +6,18 @@ var PlantID = (() => {
   let _gpsCoords        = null;
   let _lastResult       = null;
   let _supplementalPhotos   = [];  // extra photos for low-confidence re-submission
+  let _supplementalOrgans   = [];  // organ type per supplemental photo
   let _lastZone             = '';
   let _lastNotes            = '';
   let _plantNetCandidates   = null; // top-3 PlantNet results for hybrid flow
+  let _selectedOrgan        = null; // organ type for primary photo
 
   const $ = id => document.getElementById(id);
 
   function init() {
     App.registerTab('plant-id', { onShow });
     setupPhotoInput();
+    setupOrganSelect();
     setupGPS();
     setupZoneSelect();
     setupIdentifyBtn();
@@ -33,6 +36,8 @@ var PlantID = (() => {
         preview.src = 'data:image/jpeg;base64,' + saved;
         preview.style.display = 'block';
       }
+      const organSection = $('pid-organ-section');
+      if (organSection) organSection.style.display = 'block';
       updateIdentifyBtn();
     } catch(e) {}
   }
@@ -67,6 +72,26 @@ var PlantID = (() => {
 
   function setupZoneSelect() { populateZoneSelect(); }
 
+  /* ── Organ selector ── */
+  function setupOrganSelect() {
+    const pills = document.querySelectorAll('#pid-organ-pills .organ-pill');
+    pills.forEach(pill => {
+      pill.addEventListener('click', () => {
+        pills.forEach(p => p.classList.remove('selected'));
+        pill.classList.add('selected');
+        _selectedOrgan = pill.dataset.organ;
+        updateIdentifyBtn();
+      });
+    });
+  }
+
+  function resetOrganSelect() {
+    _selectedOrgan = null;
+    document.querySelectorAll('#pid-organ-pills .organ-pill').forEach(p => p.classList.remove('selected'));
+    const section = $('pid-organ-section');
+    if (section) section.style.display = 'none';
+  }
+
   /* ── Image compression ── */
   function compressImage(dataUrl, maxPx, quality) {
     return new Promise(resolve => {
@@ -100,6 +125,10 @@ var PlantID = (() => {
         preview.src  = compressed;
         preview.style.display = 'block';
         try { sessionStorage.setItem('fc_photo_b64', _photoBase64); } catch(e) {}
+        // Show organ selector — reset any previous selection
+        resetOrganSelect();
+        const organSection = $('pid-organ-section');
+        if (organSection) organSection.style.display = 'block';
         updateIdentifyBtn();
       };
       reader.readAsDataURL(file);
@@ -181,7 +210,7 @@ var PlantID = (() => {
 
   function updateIdentifyBtn() {
     const btn = $('pid-identify-btn');
-    if (btn) btn.disabled = !_photoBase64;
+    if (btn) btn.disabled = !(_photoBase64 && _selectedOrgan);
   }
 
   /* ── Clear / New plant ── */
@@ -191,9 +220,11 @@ var PlantID = (() => {
     _gpsCoords          = null;
     _lastResult         = null;
     _supplementalPhotos   = [];
+    _supplementalOrgans   = [];
     _lastZone             = '';
     _lastNotes            = '';
     _plantNetCandidates   = null;
+    resetOrganSelect();
     try { sessionStorage.removeItem('fc_photo_b64'); } catch(e) {}
 
     const preview = $('pid-photo-preview');
@@ -234,6 +265,7 @@ var PlantID = (() => {
     _lastZone           = $('pid-zone').value;
     _lastNotes          = ($('pid-notes').value || '').trim();
     _supplementalPhotos = [];
+    _supplementalOrgans = [];
     _plantNetCandidates = null;
 
     showSpinner(true);
@@ -281,7 +313,7 @@ var PlantID = (() => {
     if (pnKey && navigator.onLine) {
       setSpinnerMsg('Step 1 of 2: Identifying species…');
       try {
-        _plantNetCandidates = await callPlantNetAPI(pnKey, _supplementalPhotos);
+        _plantNetCandidates = await callPlantNetAPI(pnKey, _supplementalPhotos, _supplementalOrgans);
       } catch(e) {
         console.warn('PlantNet re-identify failed:', e.status, e.message, e);
         _plantNetCandidates = null;
@@ -317,7 +349,7 @@ var PlantID = (() => {
   }
 
   /* ── PlantNet API call ── */
-  async function callPlantNetAPI(apiKey, extraPhotos) {
+  async function callPlantNetAPI(apiKey, extraPhotos, extraOrgans) {
     // Convert primary base64 photo to Blob
     const toBlob = (b64) => {
       const bytes = atob(b64);
@@ -328,10 +360,13 @@ var PlantID = (() => {
 
     const form = new FormData();
     form.append('images', toBlob(_photoBase64), 'photo.jpg');
+    form.append('organs', _selectedOrgan || 'auto');
     if (extraPhotos && extraPhotos.length) {
-      extraPhotos.forEach((p, i) => form.append('images', toBlob(p.data), `photo${i+2}.jpg`));
+      extraPhotos.forEach((p, i) => {
+        form.append('images', toBlob(p.data), `photo${i+2}.jpg`);
+        form.append('organs', (extraOrgans && extraOrgans[i]) || 'auto');
+      });
     }
-    form.append('organs', 'auto');
 
     const res = await fetch(
       `https://my-api.plantnet.org/v2/identify/all?include-related-images=false&no-reject=false&nb-results=3&lang=en&api-key=${encodeURIComponent(apiKey.trim())}`,
@@ -568,7 +603,17 @@ var PlantID = (() => {
         ${photoTip}
       </div>
       <div style="display:flex;flex-direction:column;gap:8px;margin-top:4px">
-        <label class="btn btn-amber" style="cursor:pointer">
+        <div style="font-size:12px;color:var(--label);font-weight:600;margin-bottom:2px">Add another photo to improve ID:</div>
+        <div style="font-size:11px;color:var(--muted);margin-bottom:2px">What part will you photograph?</div>
+        <div class="organ-pills" id="pid-supp-organ-pills">
+          <button type="button" class="organ-pill" data-organ="leaf">🍃 Leaf</button>
+          <button type="button" class="organ-pill" data-organ="flower">🌸 Flower</button>
+          <button type="button" class="organ-pill" data-organ="fruit">🍇 Fruit</button>
+          <button type="button" class="organ-pill" data-organ="bark">🌳 Bark</button>
+          <button type="button" class="organ-pill" data-organ="habit">🌿 Habit</button>
+          <button type="button" class="organ-pill" data-organ="other">❓ Other</button>
+        </div>
+        <label class="btn btn-amber" style="cursor:pointer" id="pid-supp-photo-label">
           📷 Add photo to improve ID
           <input type="file" id="pid-supplemental-input" accept="image/*" capture="environment" style="display:none">
         </label>
@@ -576,13 +621,32 @@ var PlantID = (() => {
         <button class="btn btn-outline" id="pid-low-conf-new-plant">🔄 New plant</button>
       </div>`;
 
+    // Wire up supplemental organ pills
+    let _suppOrganSelected = null;
+    const suppPills = document.querySelectorAll('#pid-supp-organ-pills .organ-pill');
+    suppPills.forEach(pill => {
+      pill.addEventListener('click', () => {
+        suppPills.forEach(p => p.classList.remove('selected'));
+        pill.classList.add('selected');
+        _suppOrganSelected = pill.dataset.organ;
+        // Enable photo button once organ is picked
+        const photoLabel = $('pid-supp-photo-label');
+        if (photoLabel) photoLabel.style.opacity = '1';
+      });
+    });
+
     $('pid-supplemental-input').addEventListener('change', async e => {
       const file = e.target.files[0];
       if (!file) return;
+      if (!_suppOrganSelected) {
+        App.toast('Please select which part of the plant you photographed first');
+        return;
+      }
       const reader = new FileReader();
       reader.onload = async ev => {
         const compressed = await compressImage(ev.target.result, 2000, 0.95);
         _supplementalPhotos.push({ data: compressed.split(',')[1], type: 'image/jpeg' });
+        _supplementalOrgans.push(_suppOrganSelected);
         await reIdentify();
       };
       reader.readAsDataURL(file);
