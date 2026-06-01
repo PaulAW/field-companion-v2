@@ -6,6 +6,7 @@ var Logger = (() => {
   let _observations = [];
   let _filterZone = '';
   let _editingId = null;   // non-null when editing an existing observation
+  let _showArchived = false;  // toggle to show removed/archived observations
 
   const $ = id => document.getElementById(id);
 
@@ -295,17 +296,24 @@ var Logger = (() => {
     const container = $('log-history-list');
     if (!container) return;
 
-    // A-3: Sync status indicator
     renderSyncStatus();
+    renderArchiveToggle();
 
     try {
       const zone = ($('log-history-zone-filter') || {}).value || '';
-      _observations = zone
+      const all = zone
         ? await App.getObservationsByZone(zone)
         : await App.getAllObservations();
 
+      // Split into active and archived
+      _observations = _showArchived
+        ? all.filter(o => o.removed)
+        : all.filter(o => !o.removed);
+
       if (_observations.length === 0) {
-        container.innerHTML = `<div class="empty-state"><span class="ico">📋</span>No observations yet.<br>Use Plant ID or the New Entry form to log plants.</div>`;
+        container.innerHTML = _showArchived
+          ? `<div class="empty-state"><span class="ico">📦</span>No archived observations.</div>`
+          : `<div class="empty-state"><span class="ico">📋</span>No observations yet.<br>Use Plant ID or the New Entry form to log plants.</div>`;
         return;
       }
 
@@ -318,6 +326,27 @@ var Logger = (() => {
     } catch (err) {
       container.innerHTML = `<div class="alert alert-error">Error loading history: ${err.message}</div>`;
     }
+  }
+
+  function renderArchiveToggle() {
+    let toggleEl = $('log-archive-toggle');
+    if (!toggleEl) {
+      toggleEl = document.createElement('div');
+      toggleEl.id = 'log-archive-toggle';
+      toggleEl.style.cssText = 'margin-bottom:10px;text-align:right';
+      const historyList = $('log-history-list');
+      if (historyList && historyList.parentNode) {
+        historyList.parentNode.insertBefore(toggleEl, historyList);
+      }
+    }
+    toggleEl.innerHTML = `<button type="button" class="btn btn-sm btn-outline" id="log-archive-btn" style="font-size:11px;${_showArchived ? 'background:var(--amber);color:#fff;border-color:var(--amber)' : ''}">
+      ${_showArchived ? '← Active entries' : '📦 Show archived'}
+    </button>`;
+    const btn = $('log-archive-btn');
+    if (btn) btn.addEventListener('click', () => {
+      _showArchived = !_showArchived;
+      loadHistory();
+    });
   }
 
   /* A-3: render sync status row */
@@ -359,17 +388,23 @@ var Logger = (() => {
     };
     const badgeCls = badgeMap[obs.native_status] || 'badge-zone';
     const keystone = obs.keystone === 'Yes' ? '<span class="badge badge-keystone">⭐ Keystone</span>' : '';
+    const archivedStyle = obs.removed ? 'opacity:0.6' : '';
+    const nameStyle     = obs.removed ? 'text-decoration:line-through' : '';
+    const removedBadge  = obs.removed
+      ? `<span class="badge" style="background:#78909c;color:#fff">📦 Removed ${obs.removed_on ? App.formatDate(obs.removed_on) : ''}</span>`
+      : '';
     return `
-      <div class="history-item">
+      <div class="history-item" style="${archivedStyle}">
         <div class="hist-date">${App.formatDate(obs.date)} · Zone ${obs.zone}${obs.lat ? ` · ${obs.lat}, ${obs.lng}` : ''}</div>
-        <div class="hist-name">${esc(obs.common_name)}</div>
+        <div class="hist-name" style="${nameStyle}">${esc(obs.common_name)}</div>
         <div class="hist-meta">
           <span class="badge ${badgeCls}">${esc(obs.native_status || 'Unknown')}</span>
           ${keystone}
+          ${removedBadge}
           <span class="badge badge-zone">Zone ${esc(obs.zone)}</span>
           ${obs.ai_identified ? '<span class="badge" style="background:#e8e0f8;color:#4a3a8a">🤖 AI</span>' : ''}
         </div>
-        ${obs.action_needed ? `<div class="hist-action">→ ${esc(obs.action_needed)}</div>` : ''}
+        ${obs.action_needed && !obs.removed ? `<div class="hist-action">→ ${esc(obs.action_needed)}</div>` : ''}
       </div>`;
   }
 
@@ -401,8 +436,11 @@ var Logger = (() => {
         <div class="mono-box">${esc(csvRow)}</div>
         <div style="display:flex;gap:8px;margin-top:10px;flex-wrap:wrap">
           <button class="btn btn-outline btn-sm" id="obs-copy-csv">📋 Copy CSV</button>
-          <button class="btn btn-outline btn-sm" id="obs-edit">✏️ Edit</button>
-          <button class="btn btn-outline btn-sm" id="obs-duplicate">📋 Duplicate</button>
+          ${!obs.removed ? `<button class="btn btn-outline btn-sm" id="obs-edit">✏️ Edit</button>` : ''}
+          ${!obs.removed ? `<button class="btn btn-outline btn-sm" id="obs-duplicate">📋 Duplicate</button>` : ''}
+          ${!obs.removed
+            ? `<button class="btn btn-outline btn-sm" id="obs-archive" style="color:#78909c;border-color:#78909c">📦 Mark Removed</button>`
+            : `<button class="btn btn-outline btn-sm" id="obs-restore" style="color:var(--green);border-color:var(--green)">↩️ Restore</button>`}
           <button class="btn btn-sm btn-danger" id="obs-delete">🗑 Delete</button>
         </div>
       </div>`;
@@ -410,20 +448,39 @@ var Logger = (() => {
     modal.querySelector('#obs-detail-close').addEventListener('click', () => modal.remove());
     modal.addEventListener('click', e => { if (e.target === modal) modal.remove(); });
     modal.querySelector('#obs-copy-csv').addEventListener('click', () => App.copyToClipboard(csvRow));
-    modal.querySelector('#obs-edit').addEventListener('click', () => {
+
+    const editBtn = modal.querySelector('#obs-edit');
+    if (editBtn) editBtn.addEventListener('click', () => { modal.remove(); editObservation(obs); });
+
+    const dupBtn = modal.querySelector('#obs-duplicate');
+    if (dupBtn) dupBtn.addEventListener('click', () => { modal.remove(); duplicateObservation(obs); });
+
+    const archiveBtn = modal.querySelector('#obs-archive');
+    if (archiveBtn) archiveBtn.addEventListener('click', async () => {
+      if (!confirm(`Archive "${obs.common_name}" as removed?\nIt will be hidden by default — use "Show archived" to find it again.`)) return;
+      await App.updateObservation(obs.id, { removed: true, removed_on: App.todayISO() });
       modal.remove();
-      editObservation(obs);
+      App.toast(`${obs.common_name} archived ✓`);
+      loadHistory();
+      if (window.PropertyMap) PropertyMap.refreshIfVisible();
     });
-    modal.querySelector('#obs-duplicate').addEventListener('click', () => {
+
+    const restoreBtn = modal.querySelector('#obs-restore');
+    if (restoreBtn) restoreBtn.addEventListener('click', async () => {
+      await App.updateObservation(obs.id, { removed: false, removed_on: null });
       modal.remove();
-      duplicateObservation(obs);
+      App.toast(`${obs.common_name} restored ✓`);
+      loadHistory();
+      if (window.PropertyMap) PropertyMap.refreshIfVisible();
     });
+
     modal.querySelector('#obs-delete').addEventListener('click', async () => {
-      if (!confirm(`Delete observation for "${obs.common_name}"?`)) return;
+      if (!confirm(`Permanently delete "${obs.common_name}"?\nThis cannot be undone.`)) return;
       await App.deleteObservation(obs.id);
       modal.remove();
       App.toast('Observation deleted');
       loadHistory();
+      if (window.PropertyMap) PropertyMap.refreshIfVisible();
     });
   }
 

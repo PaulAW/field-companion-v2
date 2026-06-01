@@ -21,7 +21,8 @@ var PropertyMap = (() => {
   let _drawnItems   = null;
   let _initialized  = false;
   let _allObs       = [];
-  let _filterStatus = 'all';
+  let _filterStatus  = 'all';
+  let _showArchived  = false;
   let _pendingGeoJSON = null;
   let _labelsVisible  = true;
   let _labelToggleBtn = null;
@@ -113,6 +114,9 @@ var PropertyMap = (() => {
     /* Zoom-level label control (A-5) */
     _map.on('zoomend', applyLabelVisibility);
 
+    /* Wire popup archive/restore links */
+    _map.on('popupopen', () => setTimeout(wirePopupLinks, 50));
+
     /* Filter bar */
     document.querySelectorAll('.map-filter-btn').forEach(btn => {
       btn.addEventListener('click', () => {
@@ -123,6 +127,18 @@ var PropertyMap = (() => {
         updateObsCount();
       });
     });
+
+    /* Archive toggle button */
+    const archiveBtn = $('map-archive-toggle');
+    if (archiveBtn) {
+      archiveBtn.addEventListener('click', () => {
+        _showArchived = !_showArchived;
+        archiveBtn.classList.toggle('active', _showArchived);
+        archiveBtn.title = _showArchived ? 'Showing archived (removed) plants' : 'Show archived plants';
+        renderPins();
+        updateObsCount();
+      });
+    }
 
     /* Boundary confirm / cancel */
     const saveBtn   = $('map-boundary-save');
@@ -205,44 +221,86 @@ var PropertyMap = (() => {
     if (!_clusterGroup) return;
     _clusterGroup.clearLayers();
 
-    const obs = _filterStatus === 'all'
-      ? _allObs
-      : _allObs.filter(o => o.native_status === _filterStatus);
+    // Active or archived filter
+    let obs = _showArchived
+      ? _allObs.filter(o => o.removed)
+      : _allObs.filter(o => !o.removed);
 
-    let plotted = 0;
+    // Status filter (only apply when showing active)
+    if (!_showArchived && _filterStatus !== 'all') {
+      obs = obs.filter(o => o.native_status === _filterStatus);
+    }
+
     obs.forEach(o => {
       const lat = parseFloat(o.lat || o.latitude);
       const lng = parseFloat(o.lng || o.longitude);
       if (!lat || !lng || isNaN(lat) || isNaN(lng)) return;
 
-      const color = PIN_COLORS[o.native_status] || PIN_COLORS['Unknown'];
+      const isArchived = !!o.removed;
+      const color = isArchived ? '#78909c' : (PIN_COLORS[o.native_status] || PIN_COLORS['Unknown']);
       const marker = L.circleMarker([lat, lng], {
         radius: 10,
-        fillColor: color,
-        color: '#fff',
-        weight: 2.5,
-        opacity: 1,
-        fillOpacity: 0.9,
+        fillColor: isArchived ? '#fff' : color,
+        color:     isArchived ? '#78909c' : '#fff',
+        weight:    isArchived ? 2 : 2.5,
+        opacity:   1,
+        fillOpacity: isArchived ? 0 : 0.9,
+        dashArray: isArchived ? '4 3' : null,
       });
       marker.bindPopup(pinPopupHTML(o), { maxWidth: 260 });
       _clusterGroup.addLayer(marker);
-      plotted++;
     });
   }
 
   function pinPopupHTML(o) {
-    const color = PIN_COLORS[o.native_status] || PIN_COLORS['Unknown'];
+    const color = o.removed ? '#78909c' : (PIN_COLORS[o.native_status] || PIN_COLORS['Unknown']);
     const date  = (App.formatDate ? App.formatDate(o.date) : o.date) || '';
+    const archiveAction = o.removed
+      ? `<br><a href="#" class="popup-restore-link" data-id="${o.id}" style="font-size:11px;color:var(--green)">↩️ Restore</a>`
+      : `<br><a href="#" class="popup-archive-link" data-id="${o.id}" style="font-size:11px;color:#78909c">📦 Mark as Removed</a>`;
     return `
       <div style="font-size:13px;line-height:1.7;min-width:180px">
         <strong style="font-size:14px">${esc(o.common_name)}</strong>
         ${o.latin_name ? `<br><em style="font-size:11px;color:#666">${esc(o.latin_name)}</em>` : ''}
+        ${o.removed ? `<br><em style="font-size:10px;color:#78909c">Archived · removed ${o.removed_on ? App.formatDate(o.removed_on) : ''}</em>` : ''}
         <br>
-        <span style="display:inline-block;background:${color};color:${o.native_status === 'Naturalized' ? '#fff' : '#fff'};border-radius:4px;padding:1px 7px;font-size:10px;margin-top:3px">${esc(o.native_status || 'Unknown')}</span>
+        <span style="display:inline-block;background:${color};color:#fff;border-radius:4px;padding:1px 7px;font-size:10px;margin-top:3px">${esc(o.native_status || 'Unknown')}</span>
         <span style="display:inline-block;background:#e8e0d0;color:#5a4f3e;border-radius:4px;padding:1px 7px;font-size:10px;margin-top:3px">Zone ${esc(o.zone)}</span>
         <br><span style="font-size:10px;color:#888">${esc(date)}</span>
-        ${o.action_needed ? `<br><span style="font-size:11px;color:#555">→ ${esc(o.action_needed)}</span>` : ''}
+        ${o.action_needed && !o.removed ? `<br><span style="font-size:11px;color:#555">→ ${esc(o.action_needed)}</span>` : ''}
+        ${archiveAction}
       </div>`;
+  }
+
+  /* Wire popup archive/restore links after popup opens */
+  function wirePopupLinks() {
+    document.querySelectorAll('.popup-archive-link').forEach(a => {
+      a.addEventListener('click', async e => {
+        e.preventDefault();
+        const id = parseInt(a.dataset.id);
+        const obs = _allObs.find(o => o.id === id);
+        if (!obs) return;
+        if (!confirm(`Archive "${obs.common_name}" as removed?\nHidden by default — use 📦 toggle to view again.`)) return;
+        await App.updateObservation(id, { removed: true, removed_on: App.todayISO() });
+        App.toast(`${obs.common_name} archived ✓`);
+        _map.closePopup();
+        await refreshObservations();
+        if (window.Logger) Logger.refreshIfVisible();
+      });
+    });
+    document.querySelectorAll('.popup-restore-link').forEach(a => {
+      a.addEventListener('click', async e => {
+        e.preventDefault();
+        const id = parseInt(a.dataset.id);
+        const obs = _allObs.find(o => o.id === id);
+        if (!obs) return;
+        await App.updateObservation(id, { removed: false, removed_on: null });
+        App.toast(`${obs.common_name} restored ✓`);
+        _map.closePopup();
+        await refreshObservations();
+        if (window.Logger) Logger.refreshIfVisible();
+      });
+    });
   }
 
   function updateObsCount() {
