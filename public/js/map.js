@@ -7,10 +7,11 @@ var PropertyMap = (() => {
   const DEFAULT_ZOOM   = 17;
 
   const PIN_COLORS = {
-    'Native':     '#2e9e4a',
-    'Invasive':   '#e53935',
-    'Non-native': '#f57c00',
-    'Unknown':    '#78909c',
+    'Native':       '#2e9e4a',
+    'Invasive':     '#e53935',
+    'Non-native':   '#f57c00',
+    'Naturalized':  '#0097a7',
+    'Unknown':      '#78909c',
   };
 
   let _map          = null;
@@ -237,7 +238,7 @@ var PropertyMap = (() => {
         <strong style="font-size:14px">${esc(o.common_name)}</strong>
         ${o.latin_name ? `<br><em style="font-size:11px;color:#666">${esc(o.latin_name)}</em>` : ''}
         <br>
-        <span style="display:inline-block;background:${color};color:#fff;border-radius:4px;padding:1px 7px;font-size:10px;margin-top:3px">${esc(o.native_status || 'Unknown')}</span>
+        <span style="display:inline-block;background:${color};color:${o.native_status === 'Naturalized' ? '#fff' : '#fff'};border-radius:4px;padding:1px 7px;font-size:10px;margin-top:3px">${esc(o.native_status || 'Unknown')}</span>
         <span style="display:inline-block;background:#e8e0d0;color:#5a4f3e;border-radius:4px;padding:1px 7px;font-size:10px;margin-top:3px">Zone ${esc(o.zone)}</span>
         <br><span style="font-size:10px;color:#888">${esc(date)}</span>
         ${o.action_needed ? `<br><span style="font-size:11px;color:#555">→ ${esc(o.action_needed)}</span>` : ''}

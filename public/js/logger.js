@@ -351,10 +351,11 @@ var Logger = (() => {
 
   function historyItemHTML(obs) {
     const badgeMap = {
-      'Native':     'badge-native',
-      'Invasive':   'badge-invasive',
-      'Non-native': 'badge-nonnative',
-      'Unknown':    'badge-zone',
+      'Native':      'badge-native',
+      'Invasive':    'badge-invasive',
+      'Non-native':  'badge-nonnative',
+      'Naturalized': 'badge-naturalized',
+      'Unknown':     'badge-zone',
     };
     const badgeCls = badgeMap[obs.native_status] || 'badge-zone';
     const keystone = obs.keystone === 'Yes' ? '<span class="badge badge-keystone">⭐ Keystone</span>' : '';

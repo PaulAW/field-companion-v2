@@ -454,7 +454,7 @@ var PlantID = (() => {
   /* Minimal fallback prompt if property-context fails to load */
   function fallbackSystemPrompt() {
     return `Identify the plant in the photo. Respond with valid JSON only:
-{"common_name":"string","latin_name":"string","confidence":"High"|"Medium"|"Low","native_status":"Native"|"Invasive"|"Non-native"|"Unknown","keystone":true|false,"recommended_action":"REMOVE"|"NURTURE"|"MONITOR"|"UNKNOWN","action_detail":"string","fun_fact":"string","photo_tip":null,"log_entry":{"common_name":"string","latin_name":"string","native":"Native"|"Invasive"|"Non-native"|"Unknown","keystone":"Yes"|"No","observation_type":"string","action_needed":"string"}}`;
+{"common_name":"string","latin_name":"string","confidence":"High"|"Medium"|"Low","native_status":"Native"|"Invasive"|"Non-native"|"Naturalized"|"Unknown","keystone":true|false,"recommended_action":"REMOVE"|"NURTURE"|"MONITOR"|"UNKNOWN","action_detail":"string","fun_fact":"string","photo_tip":null,"log_entry":{"common_name":"string","latin_name":"string","native":"Native"|"Invasive"|"Non-native"|"Naturalized"|"Unknown","keystone":"Yes"|"No","observation_type":"string","action_needed":"string"}}`;
   }
 
   /* ── Confidence threshold check ── */
@@ -502,7 +502,7 @@ var PlantID = (() => {
   }
 
   function nativeStatusBadge(status) {
-    const map = { Native: 'badge-native', Invasive: 'badge-invasive', 'Non-native': 'badge-nonnative', Unknown: 'badge-zone' };
+    const map = { Native: 'badge-native', Invasive: 'badge-invasive', 'Non-native': 'badge-nonnative', Naturalized: 'badge-naturalized', Unknown: 'badge-zone' };
     return `<span class="badge ${map[status] || 'badge-zone'}">${esc(status || 'Unknown')}</span>`;
   }
 

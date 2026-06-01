@@ -715,3 +715,8 @@ input:focus, select:focus, textarea:focus {
 .task-item-editing { flex-direction: column; align-items: stretch; padding: 10px 12px; background: #f9f9f9; }
 .task-edit-btn { opacity: 0; transition: opacity 0.15s; flex-shrink: 0; }
 .task-item:hover .task-edit-btn { opacity: 1; }
+
+/* Naturalized status — teal */
+.badge-naturalized { background: #0097a7; color: #fff; }
+.map-filter-naturalized { color: #0097a7; }
+.map-filter-naturalized.active { background: #0097a7; color: #fff; border-color: #0097a7; }
