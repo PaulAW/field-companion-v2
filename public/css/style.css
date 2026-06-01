@@ -698,3 +698,20 @@ input:focus, select:focus, textarea:focus {
   pointer-events: auto;
 }
 .zone-label-icon:active { cursor: grabbing; }
+
+/* A-7: Zone delete row in zone management panel */
+.zone-delete-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 7px 0;
+  border-bottom: 1px solid var(--border);
+}
+.zone-delete-row:last-child { border-bottom: none; }
+
+/* B-1–B-4: Tasks add/edit UI */
+.add-task-row { padding: 8px 12px 4px; }
+.add-task-btn { color: var(--green); border-color: var(--green); }
+.task-item-editing { flex-direction: column; align-items: stretch; padding: 10px 12px; background: #f9f9f9; }
+.task-edit-btn { opacity: 0; transition: opacity 0.15s; flex-shrink: 0; }
+.task-item:hover .task-edit-btn { opacity: 1; }

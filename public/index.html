@@ -330,9 +330,19 @@
             <button class="btn btn-sm" id="map-boundary-save" type="button">Save</button>
             <button class="btn btn-sm btn-outline" id="map-boundary-cancel" type="button">Cancel</button>
           </div>
+        </div>
+      </div>
+      <!-- Zone management panel (A-7) -->
+      <div id="map-zones-panel" style="display:none;position:absolute;inset:0;z-index:1500;background:rgba(0,0,0,.5);align-items:center;justify-content:center;">
+        <div class="map-boundary-content">
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
+            <strong style="font-size:14px">Zone Boundaries</strong>
+            <button id="map-zones-close" type="button" style="background:none;border:none;font-size:18px;cursor:pointer;padding:0 4px;color:var(--muted)">✕</button>
+          </div>
+          <div id="map-zones-list" style="max-height:260px;overflow-y:auto"></div>
           <div style="margin-top:12px;padding-top:12px;border-top:1px solid var(--border);display:flex;gap:8px">
             <button class="btn btn-sm btn-outline" id="map-clear-property" type="button" style="font-size:11px;color:var(--muted)">Clear property</button>
-            <button class="btn btn-sm btn-outline" id="map-clear-zone" type="button" style="font-size:11px;color:var(--muted)">Clear zones</button>
+            <button class="btn btn-sm btn-outline" id="map-clear-zone" type="button" style="font-size:11px;color:#e53935;border-color:#e53935">Clear all zones</button>
           </div>
         </div>
       </div>

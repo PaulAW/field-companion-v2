@@ -1,6 +1,6 @@
 /* app.js — Field Companion core: routing, data loading, IndexedDB, toast, offline */
 
-const APP_BUILD = '2026-05-31-l';   // bump this letter each deploy for version tracking
+const APP_BUILD = '2026-06-01-a';   // bump this letter each deploy for version tracking
 
 const App = (() => {
   let _zones = [];

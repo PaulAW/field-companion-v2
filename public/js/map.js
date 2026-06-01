@@ -106,6 +106,9 @@ var PropertyMap = (() => {
     /* Zone label toggle button (A-6) */
     addLabelToggleControl();
 
+    /* Zone management button (A-7) */
+    addManageZonesControl();
+
     /* Zoom-level label control (A-5) */
     _map.on('zoomend', applyLabelVisibility);
 
@@ -145,10 +148,19 @@ var PropertyMap = (() => {
 
     const clearZoneBtn = $('map-clear-zone');
     if (clearZoneBtn) clearZoneBtn.addEventListener('click', () => {
-      if (!confirm('Clear all saved zone boundaries?')) return;
+      if (!confirm('Clear ALL saved zone boundaries?')) return;
       localStorage.removeItem('fc_zone_boundaries');
       loadBoundaries();
       App.toast('Zone boundaries cleared');
+      renderZonesList();
+    });
+
+    /* Zone management panel close */
+    const zonesClose = $('map-zones-close');
+    if (zonesClose) zonesClose.addEventListener('click', closeZonesPanel);
+    const zonesPanel = $('map-zones-panel');
+    if (zonesPanel) zonesPanel.addEventListener('click', e => {
+      if (e.target === zonesPanel) closeZonesPanel();
     });
 
     // Pull cloud boundaries first, then render
@@ -412,6 +424,91 @@ var PropertyMap = (() => {
     if (panel) panel.style.display = 'none';
   }
 
+  /* ── A-7: Zone management panel ── */
+  function addManageZonesControl() {
+    const ManageZonesBtn = L.Control.extend({
+      options: { position: 'topright' },
+      onAdd() {
+        const btn = L.DomUtil.create('button', 'leaflet-bar map-manage-zones-btn');
+        btn.innerHTML = '🗂';
+        btn.title = 'Manage zone boundaries';
+        btn.type  = 'button';
+        btn.style.cssText = 'background:white;border:none;cursor:pointer;padding:5px 8px;font-size:15px;display:block;line-height:1;';
+        L.DomEvent.on(btn, 'click', e => {
+          L.DomEvent.stopPropagation(e);
+          openZonesPanel();
+        });
+        return btn;
+      },
+    });
+    new ManageZonesBtn().addTo(_map);
+  }
+
+  function openZonesPanel() {
+    renderZonesList();
+    const panel = $('map-zones-panel');
+    if (panel) panel.style.display = 'flex';
+  }
+
+  function closeZonesPanel() {
+    const panel = $('map-zones-panel');
+    if (panel) panel.style.display = 'none';
+  }
+
+  function renderZonesList() {
+    const container = $('map-zones-list');
+    if (!container) return;
+    const raw = localStorage.getItem('fc_zone_boundaries');
+    const zoneMap = raw ? JSON.parse(raw) : {};
+    const zones   = App.getZones();
+    const ids     = Object.keys(zoneMap);
+    if (ids.length === 0) {
+      container.innerHTML = '<div style="font-size:13px;color:var(--muted);padding:4px 0">No zone boundaries saved.</div>';
+      return;
+    }
+    container.innerHTML = ids.map(id => {
+      const zone = zones.find(z => z.id === id);
+      const label = zone ? `Zone ${zone.id} – ${zone.name}` : `Zone ${id}`;
+      return `<div class="zone-delete-row" id="zone-del-row-${id}">
+        <span style="font-size:13px;flex:1">${esc(label)}</span>
+        <button class="btn btn-sm btn-outline" data-zone-del="${id}" style="font-size:11px;color:#e53935;border-color:#e53935;padding:3px 10px">Delete</button>
+      </div>`;
+    }).join('');
+    container.querySelectorAll('[data-zone-del]').forEach(btn => {
+      btn.addEventListener('click', () => deleteZoneBoundary(btn.dataset.zoneDel));
+    });
+  }
+
+  async function deleteZoneBoundary(zoneId) {
+    if (!confirm(`Delete boundary for Zone ${zoneId}? This cannot be undone.`)) return;
+
+    /* Remove from localStorage */
+    try {
+      const raw = localStorage.getItem('fc_zone_boundaries');
+      if (raw) {
+        const zoneMap = JSON.parse(raw);
+        delete zoneMap[zoneId];
+        localStorage.setItem('fc_zone_boundaries', JSON.stringify(zoneMap));
+      }
+    } catch(e) {}
+
+    /* Delete from backend if signed in */
+    if (window.Auth && Auth.isSignedIn()) {
+      try {
+        const BACKEND = 'https://field-companion-backend.paulwiner5.workers.dev';
+        const tok = Auth.getToken();
+        await fetch(`${BACKEND}/boundaries/zone/${encodeURIComponent(zoneId)}`, {
+          method: 'DELETE',
+          headers: tok ? { Authorization: 'Bearer ' + tok } : {},
+        });
+      } catch(e) { console.warn('Zone boundary cloud delete failed:', e); }
+    }
+
+    loadBoundaries();
+    renderZonesList();
+    App.toast(`Zone ${zoneId} boundary deleted`);
+  }
+
   /* ── My Location control ── */
   function addLocationControl() {
     const LocationBtn = L.Control.extend({
@@ -487,16 +584,15 @@ var PropertyMap = (() => {
     } catch(e) { return null; }
   }
 
-  /* ── Zone label position persistence (stored inside the boundary GeoJSON so it syncs) ── */
+  /* ── Zone label position persistence (stored inside boundary GeoJSON with timestamp) ── */
   function _getLabelPos(zoneId) {
     try {
       const raw = localStorage.getItem('fc_zone_boundaries');
       if (raw) {
         const zoneMap = JSON.parse(raw);
         const pos = zoneMap[zoneId] && zoneMap[zoneId].properties && zoneMap[zoneId].properties.labelPos;
-        if (pos) return pos;
+        if (pos) return pos.coords || pos; // handle both {coords,t} and legacy [lat,lng]
       }
-      // Fallback: old separate key (pre-sync format)
       const old = JSON.parse(localStorage.getItem('fc_zone_label_positions') || '{}');
       return old[zoneId] || null;
     } catch(e) { return null; }
@@ -509,9 +605,8 @@ var PropertyMap = (() => {
       const zoneMap = JSON.parse(raw);
       if (!zoneMap[zoneId]) return;
       if (!zoneMap[zoneId].properties) zoneMap[zoneId].properties = {};
-      zoneMap[zoneId].properties.labelPos = latlng;
+      zoneMap[zoneId].properties.labelPos = { coords: latlng, t: Date.now() };
       localStorage.setItem('fc_zone_boundaries', JSON.stringify(zoneMap));
-      // Push to cloud so other devices get the updated label position
       if (window.Auth && Auth.isSignedIn() && window.Sync) {
         Sync.pushBoundaries().catch(console.warn);
       }
