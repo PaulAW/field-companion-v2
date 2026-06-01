@@ -47,18 +47,21 @@ var Tasks = (() => {
       if (!res.ok) throw new Error('Tasks fetch failed: ' + res.status);
       const data = await res.json();
       const cloudTasks = (data.tasks || []).map(normaliseCloud);
-      // If backend returns 0 tasks (not yet deployed / seeding failed), fall back to local
+      // If backend returns 0 tasks, show local static tasks as a display fallback
+      // but keep _cloudMode = true so the user can still add/edit tasks via cloud.
       if (cloudTasks.length === 0) {
-        console.warn('Tasks: cloud returned 0 tasks, falling back to local data');
-        loadLocalTasks();
+        console.warn('Tasks: cloud returned 0 tasks, showing local static tasks');
+        loadLocalTasks();   // loads display data only — _cloudMode stays true
       } else {
         _tasks = cloudTasks;
         _tasks.sort((a, b) => (a.sort_order - b.sort_order) || a.text.localeCompare(b.text));
       }
       render();
     } catch(e) {
-      console.warn('Tasks cloud load failed, falling back to local:', e);
-      loadLocalTasks();
+      // Network/auth error — show local tasks for display but keep cloud mode so
+      // the UI remains functional when connectivity recovers.
+      console.warn('Tasks cloud load failed, showing local tasks as fallback:', e);
+      loadLocalTasks();   // loads display data only — _cloudMode stays true
       render();
     } finally {
       _loading = false;
@@ -80,9 +83,10 @@ var Tasks = (() => {
     };
   }
 
-  /* ── Local mode: build task list from static JSON + localStorage state ── */
+  /* ── Local mode: build task list from static JSON + localStorage state ──
+     Note: does NOT touch _cloudMode — that is controlled solely by onShow().
+     Falling back to local data does not mean the user is signed out.          */
   function loadLocalTasks() {
-    _cloudMode = false;
     let state = {};
     try { state = JSON.parse(localStorage.getItem(STORAGE_KEY) || '{}'); } catch {}
     const data = App.getTasks();

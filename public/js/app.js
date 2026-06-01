@@ -1,6 +1,6 @@
 /* app.js — Field Companion core: routing, data loading, IndexedDB, toast, offline */
 
-const APP_BUILD = '2026-06-01-h';   // bump this letter each deploy for version tracking
+const APP_BUILD = '2026-06-01-i';   // bump this letter each deploy for version tracking
 
 const App = (() => {
   let _zones = [];
@@ -422,9 +422,19 @@ const App = (() => {
       }
     }
 
-    // Kick off a background sync if signed in
-    if (window.Auth && window.Sync && Auth.isSignedIn()) {
-      setTimeout(() => Sync.fullSync().catch(console.warn), 2000);
+    // Verify stored session token is still valid; if it expired, clear it cleanly.
+    // After verification, re-run onShow on Tasks so cloudMode is set correctly.
+    if (window.Auth && Auth.isSignedIn()) {
+      Auth.verifySession().then(stillValid => {
+        if (!stillValid) {
+          // Token expired — re-render Tasks in local mode with correct state
+          if (window.Tasks) Tasks.init && Tasks.init();
+        }
+        // Kick off background sync if still signed in
+        if (window.Sync && Auth.isSignedIn()) {
+          setTimeout(() => Sync.fullSync().catch(console.warn), 2000);
+        }
+      }).catch(console.warn);
     }
 
     const buildEl = document.getElementById('app-build');
