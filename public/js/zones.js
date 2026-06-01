@@ -177,6 +177,14 @@ var Zones = (() => {
           <label class="lbl">Notes</label>
           <textarea id="ze-notes" rows="2" style="width:100%;resize:vertical">${esc(zone.notes || '')}</textarea>
         </div>
+        <div class="field" style="margin-top:10px">
+          <label class="lbl">Invasives present <span style="font-weight:400;color:var(--muted)">(one per line)</span></label>
+          <textarea id="ze-invasives" rows="4" style="width:100%;resize:vertical;font-size:12px">${(zone.invasives || []).join('\n')}</textarea>
+        </div>
+        <div class="field" style="margin-top:10px">
+          <label class="lbl">Target natives to add <span style="font-weight:400;color:var(--muted)">(one per line)</span></label>
+          <textarea id="ze-targets" rows="4" style="width:100%;resize:vertical;font-size:12px">${(zone.target_natives || []).join('\n')}</textarea>
+        </div>
         <div style="font-size:11px;color:var(--muted);margin-top:8px">Changes are saved on this device. Zone boundaries and acreage are not editable here.</div>
         <div style="display:flex;gap:8px;margin-top:16px">
           <button class="btn" id="ze-save" type="button">Save</button>
@@ -195,7 +203,16 @@ var Zones = (() => {
       const desc  = (document.getElementById('ze-desc') || {}).value || zone.description;
       const goals = (document.getElementById('ze-goals') || {}).value || zone.goals;
       const notes = (document.getElementById('ze-notes') || {}).value || '';
-      saveOverride(zone.id, { name, description: desc, goals, notes });
+      const parseLines = id => {
+        const el = document.getElementById(id);
+        return el ? el.value.split('\n').map(s => s.trim()).filter(Boolean) : null;
+      };
+      const invasives     = parseLines('ze-invasives');
+      const target_natives = parseLines('ze-targets');
+      const fields = { name, description: desc, goals, notes };
+      if (invasives !== null) fields.invasives = invasives;
+      if (target_natives !== null) fields.target_natives = target_natives;
+      saveOverride(zone.id, fields);
       close();
       // Re-render detail with updated data
       const updatedZone = mergeZone(App.getZones().find(z => z.id === zone.id) || zone);
