@@ -45,8 +45,15 @@ var Tasks = (() => {
       });
       if (!res.ok) throw new Error('Tasks fetch failed: ' + res.status);
       const data = await res.json();
-      _tasks = (data.tasks || []).map(normaliseCloud);
-      _tasks.sort((a, b) => (a.sort_order - b.sort_order) || a.text.localeCompare(b.text));
+      const cloudTasks = (data.tasks || []).map(normaliseCloud);
+      // If backend returns 0 tasks (not yet deployed / seeding failed), fall back to local
+      if (cloudTasks.length === 0) {
+        console.warn('Tasks: cloud returned 0 tasks, falling back to local data');
+        loadLocalTasks();
+      } else {
+        _tasks = cloudTasks;
+        _tasks.sort((a, b) => (a.sort_order - b.sort_order) || a.text.localeCompare(b.text));
+      }
       render();
     } catch(e) {
       console.warn('Tasks cloud load failed, falling back to local:', e);
@@ -59,13 +66,15 @@ var Tasks = (() => {
 
   function normaliseCloud(t) {
     return {
-      id:         t.id,
-      season:     t.season,
-      text:       t.text,
-      zone:       t.zone || null,
-      urgent:     !!(t.urgent === 1 || t.urgent === true),
-      completed:  !!(t.completed === 1 || t.completed === true),
-      sort_order: t.sort_order || 0,
+      id:               t.id,
+      season:           t.season,
+      text:             t.text,
+      zone:             t.zone || null,
+      urgent:           !!(t.urgent === 1 || t.urgent === true),
+      completed:        !!(t.completed === 1 || t.completed === true),
+      sort_order:       t.sort_order || 0,
+      observation_id:   t.observation_id || null,
+      observation_name: t.observation_name || null,
       _cloud: true,
     };
   }
@@ -89,6 +98,26 @@ var Tasks = (() => {
         });
       });
     });
+    // Merge in locally-added custom tasks
+    try {
+      const custom = JSON.parse(localStorage.getItem('fc_custom_tasks') || '[]');
+      custom.forEach(t => {
+        _tasks.push({ ...t, completed: !!state[t.id], _cloud: false });
+      });
+    } catch {}
+  }
+
+  function saveLocalCustomTask(task) {
+    // Generate a local id if not present
+    if (!task.id) task.id = 'local-' + Date.now();
+    try {
+      const existing = JSON.parse(localStorage.getItem('fc_custom_tasks') || '[]');
+      existing.push({ ...task, sort_order: 9000 + existing.length });
+      localStorage.setItem('fc_custom_tasks', JSON.stringify(existing));
+      // Refresh _tasks
+      loadLocalTasks();
+      renderSeason(task.season);
+    } catch(e) { console.warn('saveLocalCustomTask failed:', e); }
   }
 
   /* ── Toggle completion ── */
@@ -152,29 +181,107 @@ var Tasks = (() => {
     App.toast(`${label} tasks reset`);
   }
 
-  /* ── Add task (cloud only) ── */
-  async function addTask(seasonId, text, zone, urgent) {
-    if (!_cloudMode) return;
+  /* ── Add task ── */
+  async function addTask(seasonId, text, zone, urgent, obsId, obsName) {
     text = text.trim();
     if (!text) { App.toast('Enter task text'); return; }
 
-    const maxOrder = _tasks.filter(t => t.season === seasonId).reduce((m, t) => Math.max(m, t.sort_order), 0);
-
-    try {
-      const res = await fetch(BACKEND + '/tasks', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', ...authHeader() },
-        body: JSON.stringify({ season: seasonId, text, zone: zone || null, urgent: urgent ? 1 : 0, sort_order: maxOrder + 1 }),
+    if (_cloudMode) {
+      const maxOrder = _tasks.filter(t => t.season === seasonId).reduce((m, t) => Math.max(m, t.sort_order), 0);
+      try {
+        const res = await fetch(BACKEND + '/tasks', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', ...authHeader() },
+          body: JSON.stringify({
+            season: seasonId, text, zone: zone || null,
+            urgent: urgent ? 1 : 0, sort_order: maxOrder + 1,
+            observation_id: obsId || null, observation_name: obsName || null,
+          }),
+        });
+        if (!res.ok) throw new Error(res.status);
+        const data = await res.json();
+        _tasks.push(normaliseCloud({
+          id: data.id, season: seasonId, text,
+          zone: zone || null, urgent: urgent ? 1 : 0, completed: 0,
+          sort_order: maxOrder + 1,
+          observation_id: obsId || null, observation_name: obsName || null,
+        }));
+        renderSeason(seasonId);
+        App.toast('Task added ✓');
+      } catch(e) {
+        console.warn('Add task failed:', e);
+        App.toast('Failed to add task');
+      }
+    } else {
+      saveLocalCustomTask({
+        id: 'local-' + Date.now(),
+        season: seasonId, text, zone: zone || null,
+        urgent: !!urgent, sort_order: 9000,
+        observation_id: obsId || null, observation_name: obsName || null,
       });
-      if (!res.ok) throw new Error(res.status);
-      const data = await res.json();
-      _tasks.push(normaliseCloud({ id: data.id, season: seasonId, text, zone: zone || null, urgent: urgent ? 1 : 0, completed: 0, sort_order: maxOrder + 1 }));
-      renderSeason(seasonId);
-      App.toast('Task added ✓');
-    } catch(e) {
-      console.warn('Add task failed:', e);
-      App.toast('Failed to add task');
+      App.toast('Task saved locally ✓');
     }
+  }
+
+  /* ── Shared "Add Task" sheet — callable from Plant ID, Log, Map ── */
+  function openAddTaskSheet(prefill) {
+    prefill = prefill || {};
+    const defaultSeason = prefill.season || currentSeasonId();
+    const modal = document.createElement('div');
+    modal.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:400;display:flex;align-items:flex-end;';
+    modal.innerHTML = `
+      <div style="background:var(--cream);border-radius:20px 20px 0 0;padding:20px 16px 40px;width:100%;max-height:80dvh;overflow-y:auto;max-width:480px;margin:0 auto">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px">
+          <h3 style="font-size:16px">Add Task</h3>
+          <button id="ats-close" style="background:none;border:none;font-size:24px;cursor:pointer;color:var(--muted)">✕</button>
+        </div>
+        ${prefill.observation_name ? `<div style="font-size:11px;background:#f0f4f0;color:var(--green);border-radius:6px;padding:5px 9px;margin-bottom:10px">🔗 Linked to: <strong>${esc(prefill.observation_name)}</strong></div>` : ''}
+        <div class="field">
+          <label class="lbl">Task description</label>
+          <input type="text" id="ats-text" value="${esc(prefill.text || '')}" placeholder="What needs to be done?" style="width:100%">
+        </div>
+        <div style="display:flex;gap:10px;margin-top:8px">
+          <div class="field" style="flex:1">
+            <label class="lbl">Season</label>
+            <select id="ats-season" style="width:100%">
+              ${SEASONS.map(s => `<option value="${s.id}" ${s.id === defaultSeason ? 'selected' : ''}>${s.emoji} ${s.label}</option>`).join('')}
+            </select>
+          </div>
+          <div class="field" style="flex:1">
+            <label class="lbl">Zone</label>
+            <select id="ats-zone" style="width:100%">
+              <option value="">Any zone</option>
+              ${App.getZones().map(z => `<option value="${esc(z.id)}" ${prefill.zone === z.id ? 'selected' : ''}>Zone ${esc(z.id)}</option>`).join('')}
+            </select>
+          </div>
+        </div>
+        <label style="display:flex;align-items:center;gap:8px;margin-top:10px;font-size:13px;cursor:pointer">
+          <input type="checkbox" id="ats-urgent" ${prefill.urgent ? 'checked' : ''}> Mark as urgent
+        </label>
+        <div style="display:flex;gap:8px;margin-top:16px">
+          <button class="btn" id="ats-save" type="button">Save Task</button>
+          <button class="btn btn-outline" id="ats-cancel" type="button">Cancel</button>
+        </div>
+      </div>`;
+    document.body.appendChild(modal);
+
+    const textInput = document.getElementById('ats-text');
+    if (textInput) { textInput.focus(); textInput.select(); }
+
+    const close = () => modal.remove();
+    document.getElementById('ats-close').addEventListener('click', close);
+    document.getElementById('ats-cancel').addEventListener('click', close);
+    modal.addEventListener('click', e => { if (e.target === modal) close(); });
+
+    document.getElementById('ats-save').addEventListener('click', async () => {
+      const text   = (document.getElementById('ats-text') || {}).value || '';
+      const season = (document.getElementById('ats-season') || {}).value || currentSeasonId();
+      const zone   = (document.getElementById('ats-zone') || {}).value || '';
+      const urgent = (document.getElementById('ats-urgent') || {}).checked || false;
+      if (!text.trim()) { App.toast('Enter a task description'); return; }
+      await addTask(season, text, zone, urgent, prefill.observation_id || null, prefill.observation_name || null);
+      close();
+    });
   }
 
   /* ── Edit task (cloud only) ── */
@@ -334,11 +441,15 @@ var Tasks = (() => {
   function taskItemHTML(task) {
     if (_editingId === task.id) return taskEditHTML(task);
     const done = task.completed;
+    const obsLink = task.observation_name
+      ? `<div style="font-size:10px;color:var(--green);margin-top:1px">🔗 ${esc(task.observation_name)}</div>`
+      : '';
     return `<div class="task-item" id="task-row-${task.id}" data-task-id="${task.id}">
       <div class="task-check ${done ? 'done' : ''}"></div>
       <div class="task-text ${done ? 'done' : ''} ${task.urgent && !done ? 'task-urgent' : ''}" style="flex:1">
         ${esc(task.text)}
         ${task.zone ? `<span style="color:var(--muted);font-size:10px"> · Zone ${esc(task.zone)}</span>` : ''}
+        ${obsLink}
       </div>
       ${_cloudMode ? `<button class="task-edit-btn" data-edit="${task.id}" type="button" title="Edit task" style="background:none;border:none;cursor:pointer;font-size:13px;padding:2px 5px;color:var(--muted)">✏️</button>` : ''}
     </div>`;
@@ -489,5 +600,5 @@ var Tasks = (() => {
       .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
   }
 
-  return { init };
+  return { init, openAddTaskSheet };
 })();

@@ -562,9 +562,13 @@ var PlantID = (() => {
         <div style="margin-top:14px;border-top:1px solid var(--border);padding-top:12px">
           <div class="lbl">Log entry — copy to Google Sheet</div>
           <div class="mono-box" id="pid-csv-row">${esc(csvRow)}</div>
-          <div style="display:flex;gap:8px;margin-top:8px">
+          <div style="display:flex;gap:8px;margin-top:8px;flex-wrap:wrap">
             <button class="btn btn-outline btn-sm" id="pid-copy-csv">📋 Copy CSV row</button>
             <button class="btn btn-sm" id="pid-save-obs">💾 Save observation</button>
+          </div>
+          <div style="display:flex;gap:8px;margin-top:8px;flex-wrap:wrap">
+            ${result.action_detail ? `<button class="btn btn-outline btn-sm" id="pid-add-rec-task" style="color:var(--green);border-color:var(--green)">＋ Add recommended task</button>` : ''}
+            <button class="btn btn-outline btn-sm" id="pid-add-task" style="color:var(--green);border-color:var(--green)">＋ Add task</button>
           </div>
         </div>
         <div style="margin-top:14px;padding-top:12px;border-top:1px solid var(--border)">
@@ -590,6 +594,27 @@ var PlantID = (() => {
     $('pid-copy-csv').addEventListener('click', () => App.copyToClipboard(csvRow));
     $('pid-save-obs').addEventListener('click', () => saveObservation(result, zone, notes, csvRow));
     $('pid-new-plant').addEventListener('click', clearForm);
+
+    const addRecTaskBtn = $('pid-add-rec-task');
+    if (addRecTaskBtn && window.Tasks) {
+      addRecTaskBtn.addEventListener('click', () => {
+        Tasks.openAddTaskSheet({
+          text:             result.action_detail || '',
+          zone:             zone || '',
+          urgent:           result.recommended_action === 'REMOVE',
+          observation_name: result.common_name + (zone ? ' · Zone ' + zone : ''),
+        });
+      });
+    }
+    const addTaskBtn = $('pid-add-task');
+    if (addTaskBtn && window.Tasks) {
+      addTaskBtn.addEventListener('click', () => {
+        Tasks.openAddTaskSheet({
+          zone:             zone || '',
+          observation_name: result.common_name + (zone ? ' · Zone ' + zone : ''),
+        });
+      });
+    }
 
     // Supplemental photo from normal result
     let _normalSuppOrgan = null;
@@ -696,6 +721,21 @@ var PlantID = (() => {
 
     $('pid-save-anyway').addEventListener('click', () => showNormalResult(result, zone, notes));
     $('pid-low-conf-new-plant').addEventListener('click', clearForm);
+
+    // Add task from low-confidence card too
+    const lcAddTaskBtn = document.createElement('button');
+    lcAddTaskBtn.className = 'btn btn-outline';
+    lcAddTaskBtn.style.cssText = 'color:var(--green);border-color:var(--green)';
+    lcAddTaskBtn.textContent = '＋ Add task';
+    lcAddTaskBtn.addEventListener('click', () => {
+      if (window.Tasks) Tasks.openAddTaskSheet({
+        zone: zone || '',
+        observation_name: result.common_name + (zone ? ' · Zone ' + zone : ''),
+        text: result.action_detail || '',
+      });
+    });
+    const lcActions = container.querySelector('[id="pid-low-conf-new-plant"]');
+    if (lcActions && lcActions.parentNode) lcActions.parentNode.insertBefore(lcAddTaskBtn, lcActions);
   }
 
   function buildCSVRow(result, zone, notes) {

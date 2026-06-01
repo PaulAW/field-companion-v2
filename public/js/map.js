@@ -269,6 +269,7 @@ var PropertyMap = (() => {
         <br><span style="font-size:10px;color:#888">${esc(date)}</span>
         ${o.action_needed && !o.removed ? `<br><span style="font-size:11px;color:#555">→ ${esc(o.action_needed)}</span>` : ''}
         ${archiveAction}
+        ${!o.removed ? `<br><a href="#" class="popup-add-task-link" data-id="${o.id}" data-name="${esc(o.common_name)}" data-zone="${esc(o.zone || '')}" style="font-size:11px;color:var(--green)">＋ Add task for this plant</a>` : ''}
       </div>`;
   }
 
@@ -299,6 +300,22 @@ var PropertyMap = (() => {
         _map.closePopup();
         await refreshObservations();
         if (window.Logger) Logger.refreshIfVisible();
+      });
+    });
+    document.querySelectorAll('.popup-add-task-link').forEach(a => {
+      a.addEventListener('click', e => {
+        e.preventDefault();
+        const id   = parseInt(a.dataset.id);
+        const name = a.dataset.name;
+        const zone = a.dataset.zone;
+        _map.closePopup();
+        if (window.Tasks && Tasks.openAddTaskSheet) {
+          Tasks.openAddTaskSheet({
+            observation_id:   id,
+            observation_name: name + (zone ? ' · Zone ' + zone : ''),
+            zone,
+          });
+        }
       });
     });
   }
@@ -522,7 +539,7 @@ var PropertyMap = (() => {
     const raw = localStorage.getItem('fc_zone_boundaries');
     const zoneMap = raw ? JSON.parse(raw) : {};
     const zones   = App.getZones();
-    const ids     = Object.keys(zoneMap);
+    const ids     = Object.keys(zoneMap).sort();
     if (ids.length === 0) {
       container.innerHTML = '<div style="font-size:13px;color:var(--muted);padding:4px 0">No zone boundaries saved.</div>';
       return;

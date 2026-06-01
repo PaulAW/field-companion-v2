@@ -191,14 +191,32 @@ var Logger = (() => {
 
     try {
       if (_editingId) {
-        const id = _editingId;
-        await App.updateObservation(id, obs);
+        const savedId = _editingId;
+        await App.updateObservation(savedId, obs);
         App.toast('Observation updated ✓');
+        resetForm();
+        // Switch to History and scroll to the updated entry
+        _mode = 'history';
+        document.querySelectorAll('.log-subtab').forEach(b => b.classList.remove('active'));
+        const histBtn = document.querySelector('.log-subtab[data-mode="history"]');
+        if (histBtn) histBtn.classList.add('active');
+        $('log-panel-new').style.display     = 'none';
+        $('log-panel-history').style.display = 'block';
+        $('log-panel-export').style.display  = 'none';
+        await loadHistory();
+        setTimeout(() => {
+          const el = document.querySelector(`.history-item[data-obs-id="${savedId}"]`);
+          if (el) {
+            el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            el.style.outline = '2px solid var(--green)';
+            setTimeout(() => { el.style.outline = ''; }, 2000);
+          }
+        }, 150);
       } else {
         await App.saveObservation(obs);
         App.toast('Observation saved ✓');
+        resetForm();
       }
-      resetForm();
     } catch (err) {
       App.toast('Save failed: ' + err.message);
     }
@@ -394,7 +412,7 @@ var Logger = (() => {
       ? `<span class="badge" style="background:#78909c;color:#fff">📦 Removed ${obs.removed_on ? App.formatDate(obs.removed_on) : ''}</span>`
       : '';
     return `
-      <div class="history-item" style="${archivedStyle}">
+      <div class="history-item" data-obs-id="${obs.id}" style="${archivedStyle}">
         <div class="hist-date">${App.formatDate(obs.date)} · Zone ${obs.zone}${obs.lat ? ` · ${obs.lat}, ${obs.lng}` : ''}</div>
         <div class="hist-name" style="${nameStyle}">${esc(obs.common_name)}</div>
         <div class="hist-meta">
@@ -438,6 +456,7 @@ var Logger = (() => {
           <button class="btn btn-outline btn-sm" id="obs-copy-csv">📋 Copy CSV</button>
           ${!obs.removed ? `<button class="btn btn-outline btn-sm" id="obs-edit">✏️ Edit</button>` : ''}
           ${!obs.removed ? `<button class="btn btn-outline btn-sm" id="obs-duplicate">📋 Duplicate</button>` : ''}
+          ${!obs.removed ? `<button class="btn btn-outline btn-sm" id="obs-add-task" style="color:var(--green);border-color:var(--green)">＋ Add Task</button>` : ''}
           ${!obs.removed
             ? `<button class="btn btn-outline btn-sm" id="obs-archive" style="color:#78909c;border-color:#78909c">📦 Mark Removed</button>`
             : `<button class="btn btn-outline btn-sm" id="obs-restore" style="color:var(--green);border-color:var(--green)">↩️ Restore</button>`}
@@ -451,6 +470,19 @@ var Logger = (() => {
 
     const editBtn = modal.querySelector('#obs-edit');
     if (editBtn) editBtn.addEventListener('click', () => { modal.remove(); editObservation(obs); });
+
+    const addTaskBtn = modal.querySelector('#obs-add-task');
+    if (addTaskBtn) addTaskBtn.addEventListener('click', () => {
+      modal.remove();
+      if (window.Tasks && Tasks.openAddTaskSheet) {
+        Tasks.openAddTaskSheet({
+          observation_id:   obs.id,
+          observation_name: obs.common_name + (obs.zone ? ' · Zone ' + obs.zone : ''),
+          zone:             obs.zone || '',
+          text:             obs.action_needed || '',
+        });
+      }
+    });
 
     const dupBtn = modal.querySelector('#obs-duplicate');
     if (dupBtn) dupBtn.addEventListener('click', () => { modal.remove(); duplicateObservation(obs); });
