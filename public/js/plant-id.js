@@ -568,6 +568,21 @@ var PlantID = (() => {
           </div>
         </div>
         <div style="margin-top:14px;padding-top:12px;border-top:1px solid var(--border)">
+          <div style="font-size:11px;color:var(--muted);margin-bottom:6px">Not confident? Add another photo to sharpen the ID:</div>
+          <div class="organ-pills" id="pid-normal-supp-organ-pills" style="margin-bottom:8px">
+            <button type="button" class="organ-pill" data-organ="leaf">🍃 Leaf</button>
+            <button type="button" class="organ-pill" data-organ="flower">🌸 Flower</button>
+            <button type="button" class="organ-pill" data-organ="fruit">🍇 Fruit</button>
+            <button type="button" class="organ-pill" data-organ="bark">🌳 Bark</button>
+            <button type="button" class="organ-pill" data-organ="habit">🌿 Habit</button>
+            <button type="button" class="organ-pill" data-organ="other">❓ Other</button>
+          </div>
+          <label class="btn btn-outline" id="pid-normal-supp-label" style="width:100%;text-align:center;cursor:pointer;box-sizing:border-box;display:block">
+            📷 Add photo to improve ID
+            <input type="file" id="pid-normal-supp-input" accept="image/*" capture="environment" style="display:none">
+          </label>
+        </div>
+        <div style="margin-top:10px">
           <button class="btn btn-outline" id="pid-new-plant" style="width:100%">🔄 New plant</button>
         </div>
       </div>`;
@@ -575,6 +590,33 @@ var PlantID = (() => {
     $('pid-copy-csv').addEventListener('click', () => App.copyToClipboard(csvRow));
     $('pid-save-obs').addEventListener('click', () => saveObservation(result, zone, notes, csvRow));
     $('pid-new-plant').addEventListener('click', clearForm);
+
+    // Supplemental photo from normal result
+    let _normalSuppOrgan = null;
+    const normalPills = document.querySelectorAll('#pid-normal-supp-organ-pills .organ-pill');
+    normalPills.forEach(pill => {
+      pill.addEventListener('click', () => {
+        normalPills.forEach(p => p.classList.remove('selected'));
+        pill.classList.add('selected');
+        _normalSuppOrgan = pill.dataset.organ;
+      });
+    });
+    $('pid-normal-supp-input').addEventListener('change', async e => {
+      const file = e.target.files[0];
+      if (!file) return;
+      if (!_normalSuppOrgan) {
+        App.toast('Please select which part of the plant you photographed first');
+        return;
+      }
+      const reader = new FileReader();
+      reader.onload = async ev => {
+        const compressed = await compressImage(ev.target.result, 2000, 0.95);
+        _supplementalPhotos.push({ data: compressed.split(',')[1], type: 'image/jpeg' });
+        _supplementalOrgans.push(_normalSuppOrgan);
+        await reIdentify();
+      };
+      reader.readAsDataURL(file);
+    });
   }
 
   function showLowConfidenceResult(result, zone, notes) {
