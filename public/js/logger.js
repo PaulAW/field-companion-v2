@@ -645,5 +645,5 @@ var Logger = (() => {
     if (_mode === 'history') loadHistory();
   }
 
-  return { init, refreshIfVisible };
+  return { init, refreshIfVisible, editObservation };
 })();

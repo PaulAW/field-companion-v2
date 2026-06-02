@@ -452,16 +452,22 @@ var PropertyMap = (() => {
   function showBoundaryPrompt(geojson) {
     _pendingGeoJSON = geojson;
 
-    /* Populate zone picker */
+    /* Populate zone picker — use onchange (not addEventListener) to avoid stacking listeners */
     const zoneSel = $('map-boundary-zone');
     if (zoneSel) {
       zoneSel.innerHTML = App.getZones()
         .map(z => `<option value="${z.id}">Zone ${z.id} – ${z.name}</option>`)
-        .join('') + '<option value="__new__">+ New zone…</option>';
-      zoneSel.addEventListener('change', () => {
+        .join('') + '<option value="__new__">+ New zone ID…</option>';
+      zoneSel.onchange = () => {
         const newRow = $('map-boundary-new-zone-row');
         if (newRow) newRow.style.display = zoneSel.value === '__new__' ? 'block' : 'none';
-      });
+        // Clear any previous custom zone ID when switching back
+        const newIdEl = $('map-boundary-new-zone-id');
+        if (newIdEl && zoneSel.value !== '__new__') newIdEl.value = '';
+      };
+      // Always hide the new-zone-id row when panel opens (reset state)
+      const newRow = $('map-boundary-new-zone-row');
+      if (newRow) newRow.style.display = 'none';
     }
 
     /* Reset radio to property */
@@ -722,6 +728,33 @@ var PropertyMap = (() => {
     if (_initialized) loadBoundaries();
   }
 
+  /* Fly to a specific observation pin — called from task obs-link */
+  async function flyToObs(obsId) {
+    App.switchTab('map');
+    setTimeout(async () => {
+      if (!_map) return;
+      if (_initialized) _map.invalidateSize();
+      let obs = _allObs.find(o => o.id === obsId);
+      if (!obs) {
+        try {
+          const all = await App.getAllObservations();
+          obs = all.find(o => o.id === obsId);
+          if (all.length) { _allObs = all; renderPins(); }
+        } catch(e) {}
+      }
+      if (obs) {
+        const lat = parseFloat(obs.lat || obs.latitude);
+        const lng = parseFloat(obs.lng || obs.longitude);
+        if (lat && lng && !isNaN(lat) && !isNaN(lng)) {
+          _map.setView([lat, lng], 19);
+          App.toast(`📍 ${obs.common_name}`);
+        } else {
+          App.toast(`${obs.common_name} has no GPS pin`);
+        }
+      }
+    }, 150);
+  }
+
   /* Fly to a zone boundary — called from Tasks zone-group view */
   function flyToZone(zoneId) {
     App.switchTab('map');
@@ -738,5 +771,5 @@ var PropertyMap = (() => {
     }, 150);
   }
 
-  return { init, refreshIfVisible, reloadBoundaries, flyToZone };
+  return { init, refreshIfVisible, reloadBoundaries, flyToZone, flyToObs };
 })();

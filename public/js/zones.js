@@ -80,13 +80,16 @@ var Zones = (() => {
     const zoneTasks = (window.Tasks && Tasks.getTasksForZone)
       ? Tasks.getTasksForZone(zone.id)
       : [];
+    const canEditTasks = !!(window.Auth && Auth.isSignedIn());
     const tasksHTML = zoneTasks.length
       ? zoneTasks.map(t => `
-          <div class="zone-task-row ${t.completed ? 'zone-task-done' : ''}">
+          <div class="zone-task-row ${t.completed ? 'zone-task-done' : ''}" style="display:flex;align-items:flex-start;gap:6px">
             <span class="zone-task-check ${t.completed ? 'done' : ''}"></span>
             <span class="zone-task-season">${seasonEmoji(t.season)}</span>
-            <span class="zone-task-text">${esc(t.text)}</span>
-            ${t.urgent && !t.completed ? '<span class="badge badge-urgent" style="font-size:9px;padding:1px 5px">urgent</span>' : ''}
+            <span class="zone-task-text" style="flex:1">${esc(t.text)}
+              ${t.urgent && !t.completed ? '<span class="badge badge-urgent" style="font-size:9px;padding:1px 5px">urgent</span>' : ''}
+            </span>
+            ${canEditTasks ? `<button class="task-edit-btn zone-detail-task-edit" data-edit-task-id="${esc(String(t.id))}" type="button" title="Edit on Tasks tab" style="background:none;border:none;cursor:pointer;font-size:13px;padding:2px 4px;color:var(--muted);flex-shrink:0">✏️</button>` : ''}
           </div>`).join('')
       : '<p style="font-size:12px;color:var(--muted)">No tasks tagged to this zone.</p>';
 
@@ -149,6 +152,16 @@ var Zones = (() => {
         Tasks.openAddTaskSheet({ zone: zone.id });
       });
     }
+
+    // Wire task edit pencils → open edit on Tasks tab
+    document.querySelectorAll('.zone-detail-task-edit').forEach(btn => {
+      btn.addEventListener('click', e => {
+        e.stopPropagation();
+        if (window.Tasks && Tasks.openEditFromExternal) {
+          Tasks.openEditFromExternal(btn.dataset.editTaskId);
+        }
+      });
+    });
   }
 
   /* ── Edit sheet ── */
@@ -234,6 +247,12 @@ var Zones = (() => {
 
   function showZone(zoneId) {
     App.switchTab('zones');
+    // Flash the tab button so the user sees they've been navigated
+    const tabBtn = document.querySelector('[data-tab="zones"]');
+    if (tabBtn) {
+      tabBtn.classList.add('tab-flash');
+      setTimeout(() => tabBtn.classList.remove('tab-flash'), 800);
+    }
     const zone = mergeZone(App.getZones().find(z => z.id === zoneId) || { id: zoneId });
     renderDetail(zone);
   }

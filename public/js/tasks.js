@@ -301,8 +301,26 @@ var Tasks = (() => {
 
   /* ── Edit task (cloud only) ── */
   function startEdit(taskId) {
+    // Close any currently open edit first
+    if (_editingId && _editingId !== taskId) {
+      const prevTask = _tasks.find(t => t.id === _editingId);
+      const prevTextEl = $(`task-edit-text-${_editingId}`);
+      const hasUnsaved = prevTextEl && prevTask && prevTextEl.value.trim() !== prevTask.text;
+      if (hasUnsaved) {
+        if (!confirm('You have unsaved changes on another task. Discard them and edit this one?')) return;
+      }
+      cancelEdit();
+    }
     _editingId = taskId;
     renderTask(taskId);
+  }
+
+  /* Public — called from zone detail to open edit on Tasks tab */
+  let _pendingEditId = null;
+  function openEditFromExternal(taskId) {
+    _pendingEditId = taskId;
+    App.switchTab('tasks');
+    // onShow → loadCloudTasks → render() will pick up _pendingEditId
   }
 
   function cancelEdit() {
@@ -410,6 +428,13 @@ var Tasks = (() => {
         btn.addEventListener('click', () => { _viewMode = btn.dataset.view; render(); })
       );
       SEASONS.forEach(s => wireSeasonEvents(s.id));
+    }
+
+    // Apply any pending external edit request (e.g. from Zone detail)
+    if (_pendingEditId) {
+      const id = _pendingEditId;
+      _pendingEditId = null;
+      setTimeout(() => startEdit(id), 80);
     }
   }
 
@@ -564,7 +589,7 @@ var Tasks = (() => {
     if (_editingId === task.id) return taskEditHTML(task);
     const done = task.completed;
     const obsLink = task.observation_name
-      ? `<div style="font-size:10px;color:var(--green);margin-top:1px">🔗 ${esc(task.observation_name)}</div>`
+      ? `<div class="task-obs-link" data-fly-obs="${task.observation_id || ''}" style="font-size:10px;color:var(--green);margin-top:1px;cursor:pointer;display:inline-flex;align-items:center;gap:3px">🔗 ${esc(task.observation_name)} <span style="opacity:0.6;font-size:9px">📍</span></div>`
       : '';
     return `<div class="task-item" id="task-row-${task.id}" data-task-id="${task.id}">
       <div class="task-check ${done ? 'done' : ''}"></div>
@@ -579,7 +604,7 @@ var Tasks = (() => {
 
   function taskEditHTML(task) {
     const zones = App.getZones();
-    return `<div class="task-item task-item-editing" id="task-row-${task.id}">
+    return `<div class="task-item task-item-editing" id="task-row-${task.id}" data-task-id="${task.id}">
       <div style="flex:1">
         <input type="text" id="task-edit-text-${task.id}" value="${esc(task.text)}" style="width:100%;margin-bottom:6px">
         <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:8px">
@@ -634,10 +659,11 @@ var Tasks = (() => {
     if (!row) return;
     const taskId = row.dataset.taskId;
     if (!taskId) return;
-    // Toggle on click (but not on edit button)
+    // Toggle on click (but not on buttons/links)
     row.addEventListener('click', e => {
       if (e.target.closest('[data-edit]') || e.target.closest('[data-save-edit]') ||
           e.target.closest('[data-cancel-edit]') || e.target.closest('[data-delete-task]') ||
+          e.target.closest('.task-obs-link') ||
           e.target.tagName === 'INPUT' || e.target.tagName === 'SELECT' || e.target.tagName === 'BUTTON') return;
       toggleTask(taskId);
     });
@@ -649,6 +675,13 @@ var Tasks = (() => {
     if (cancelBtn) cancelBtn.addEventListener('click', e => { e.stopPropagation(); cancelEdit(); });
     const delBtn = row.querySelector('[data-delete-task]');
     if (delBtn) delBtn.addEventListener('click', e => { e.stopPropagation(); deleteTask(delBtn.dataset.deleteTask); });
+    // Observation link → fly to plant pin on Map tab
+    const obsLink = row.querySelector('.task-obs-link');
+    if (obsLink) obsLink.addEventListener('click', e => {
+      e.stopPropagation();
+      const obsId = parseInt(obsLink.dataset.flyObs);
+      if (obsId && window.PropertyMap && PropertyMap.flyToObs) PropertyMap.flyToObs(obsId);
+    });
   }
 
   function wireSeasonEvents(seasonId) {
@@ -726,5 +759,5 @@ var Tasks = (() => {
     return _tasks.filter(t => t.zone && t.zone.split(',').map(z => z.trim()).includes(zoneId));
   }
 
-  return { init, openAddTaskSheet, getTasksForZone };
+  return { init, openAddTaskSheet, getTasksForZone, openEditFromExternal };
 })();
