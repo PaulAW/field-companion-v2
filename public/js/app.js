@@ -1,6 +1,6 @@
 /* app.js — Field Companion core: routing, data loading, IndexedDB, toast, offline */
 
-const APP_BUILD = '2026-06-01-j';   // bump this letter each deploy for version tracking
+const APP_BUILD = '2026-06-02-a';   // bump this letter each deploy for version tracking
 
 const App = (() => {
   let _zones = [];
@@ -173,11 +173,17 @@ const App = (() => {
 
   /* ── Tab routing ── */
   let _currentTab = 'plant-id';
-  const _tabModules = {};
+  const _tabModules  = {};
+  const _tabScroll   = {};          // saved scrollTop per tab id
+  const TAB_ORDER    = ['plant-id','log','zones','tasks','map','drive'];
 
   function registerTab(id, mod) { _tabModules[id] = mod; }
 
   function switchTab(id) {
+    // Save scroll position of current tab
+    const screensEl = document.getElementById('screens');
+    if (screensEl) _tabScroll[_currentTab] = screensEl.scrollTop;
+
     document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
     document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
     const screen = document.getElementById('screen-' + id);
@@ -186,6 +192,32 @@ const App = (() => {
     if (btn)    btn.classList.add('active');
     _currentTab = id;
     if (_tabModules[id] && _tabModules[id].onShow) _tabModules[id].onShow();
+
+    // Restore saved scroll position (after content renders)
+    if (screensEl) {
+      requestAnimationFrame(() => {
+        screensEl.scrollTop = _tabScroll[id] || 0;
+      });
+    }
+  }
+
+  function initSwipeNav() {
+    const screensEl = document.getElementById('screens');
+    if (!screensEl) return;
+    let startX = 0, startY = 0;
+    screensEl.addEventListener('touchstart', e => {
+      startX = e.touches[0].clientX;
+      startY = e.touches[0].clientY;
+    }, { passive: true });
+    screensEl.addEventListener('touchend', e => {
+      const dx = e.changedTouches[0].clientX - startX;
+      const dy = e.changedTouches[0].clientY - startY;
+      // Require a clear horizontal swipe (min 70px, more horizontal than vertical)
+      if (Math.abs(dx) < 70 || Math.abs(dx) < Math.abs(dy) * 1.5) return;
+      const idx = TAB_ORDER.indexOf(_currentTab);
+      if (dx < 0 && idx < TAB_ORDER.length - 1) switchTab(TAB_ORDER[idx + 1]);
+      if (dx > 0 && idx > 0)                    switchTab(TAB_ORDER[idx - 1]);
+    }, { passive: true });
   }
 
   /* ── Offline detection ── */
@@ -440,6 +472,7 @@ const App = (() => {
     const buildEl = document.getElementById('app-build');
     if (buildEl) buildEl.textContent = APP_BUILD;
 
+    initSwipeNav();
     switchTab('plant-id');
   }
 

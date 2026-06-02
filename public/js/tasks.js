@@ -434,7 +434,14 @@ var Tasks = (() => {
     if (_pendingEditId) {
       const id = _pendingEditId;
       _pendingEditId = null;
-      setTimeout(() => startEdit(id), 80);
+      setTimeout(() => {
+        startEdit(id);
+        // Scroll the opened edit row into view
+        setTimeout(() => {
+          const row = document.getElementById(`task-row-${id}`);
+          if (row) row.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        }, 50);
+      }, 80);
     }
   }
 

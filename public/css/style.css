@@ -110,8 +110,15 @@ body {
 .tab-btn .ico { font-size: 20px; line-height: 1; }
 .tab-btn.active { color: var(--green); border-top-color: var(--green); }
 .tab-btn:active { background: var(--cream); }
-@keyframes tab-flash { 0%,100%{opacity:1} 25%,75%{opacity:0.25} 50%{opacity:1} }
-.tab-btn.tab-flash { animation: tab-flash 0.7s ease; }
+@keyframes tab-flash {
+  0%   { opacity:1;    transform:scale(1);    color:inherit; }
+  20%  { opacity:0.2;  transform:scale(0.85); }
+  45%  { opacity:1;    transform:scale(1.25); color:var(--green); }
+  65%  { opacity:0.3;  transform:scale(0.9);  }
+  85%  { opacity:1;    transform:scale(1.15); color:var(--green); }
+  100% { opacity:1;    transform:scale(1);    color:inherit; }
+}
+.tab-btn.tab-flash { animation: tab-flash 0.85s ease; transform-origin: center bottom; }
 
 /* ── Screen Container ── */
 #screens {

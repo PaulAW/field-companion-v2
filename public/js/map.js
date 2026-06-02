@@ -28,6 +28,7 @@ var PropertyMap = (() => {
   let _labelToggleBtn = null;
   let _labelLayer     = null;
   let _zoneBoundsMap  = {};   // zoneId → L.LatLngBounds, for flyToZone()
+  let _zoneLayers     = {};   // zoneId → L.GeoJSON layer, for boundary flash
 
   const $ = id => document.getElementById(id);
 
@@ -383,7 +384,10 @@ var PropertyMap = (() => {
             style: { color, weight: 2, fillColor: color, fillOpacity: 0.15 },
             interactive: false,
           }).addTo(_zoneLayer);
-          try { _zoneBoundsMap[zoneId] = zoneGeoLayer.getBounds(); } catch(e) {}
+          try {
+            _zoneBoundsMap[zoneId] = zoneGeoLayer.getBounds();
+            _zoneLayers[zoneId]    = zoneGeoLayer;
+          } catch(e) {}
 
           // A-4: DivIcon label marker — draggable, position persisted per zone
           const storedPos = _getLabelPos(zoneId);
@@ -501,23 +505,16 @@ var PropertyMap = (() => {
       if (!zoneId) { App.toast('Select a zone'); return; }
       const existing = JSON.parse(localStorage.getItem('fc_zone_boundaries') || '{}');
       if (existing[zoneId]) {
-        if (!confirm(`Zone ${zoneId} already has a boundary drawn.\n\nReplace it with this new boundary?`)) return;
+        // Show a clear 3-choice modal instead of confusing OK/Cancel confirm
+        showDuplicateZoneModal(zoneId);
+        return;
       }
       existing[zoneId] = _pendingGeoJSON;
       localStorage.setItem('fc_zone_boundaries', JSON.stringify(existing));
       App.toast(`Zone ${zoneId} boundary saved ✓`);
     }
 
-    _pendingGeoJSON = null;
-    if (_drawnItems) _drawnItems.clearLayers();
-    const panel = $('map-boundary-panel');
-    if (panel) panel.style.display = 'none';
-    loadBoundaries();
-
-    // Push to cloud immediately so other devices get it
-    if (window.Auth && Auth.isSignedIn() && window.Sync) {
-      Sync.pushBoundaries().catch(console.warn);
-    }
+    finishBoundarySave();
   }
 
   function cancelDraw() {
@@ -525,6 +522,58 @@ var PropertyMap = (() => {
     if (_drawnItems) _drawnItems.clearLayers();
     const panel = $('map-boundary-panel');
     if (panel) panel.style.display = 'none';
+  }
+
+  function showDuplicateZoneModal(zoneId) {
+    const modal = document.createElement('div');
+    modal.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:2000;display:flex;align-items:center;justify-content:center;padding:16px';
+    modal.innerHTML = `
+      <div style="background:#fff;border-radius:14px;padding:20px 18px;max-width:320px;width:100%;box-shadow:0 8px 32px rgba(0,0,0,.3)">
+        <h3 style="margin:0 0 8px;font-size:16px">Zone ${esc(zoneId)} already has a boundary</h3>
+        <p style="font-size:13px;color:#555;margin:0 0 16px;line-height:1.5">What would you like to do with the shape you just drew?</p>
+        <button id="dup-replace" class="btn" style="width:100%;margin-bottom:8px;background:#e53935;border-color:#e53935">⚠️ Replace Zone ${esc(zoneId)}'s boundary</button>
+        <button id="dup-new" class="btn btn-outline" style="width:100%;margin-bottom:8px">＋ Save as a different zone instead</button>
+        <button id="dup-cancel" class="btn btn-outline" style="width:100%;color:var(--muted)">Cancel — discard this shape</button>
+      </div>`;
+    document.body.appendChild(modal);
+
+    document.getElementById('dup-replace').addEventListener('click', () => {
+      modal.remove();
+      const existing = JSON.parse(localStorage.getItem('fc_zone_boundaries') || '{}');
+      existing[zoneId] = _pendingGeoJSON;
+      localStorage.setItem('fc_zone_boundaries', JSON.stringify(existing));
+      App.toast(`Zone ${zoneId} boundary replaced ✓`);
+      finishBoundarySave();
+    });
+
+    document.getElementById('dup-new').addEventListener('click', () => {
+      modal.remove();
+      // Switch dropdown to __new__ and focus the ID input
+      const zoneSel = $('map-boundary-zone');
+      if (zoneSel) {
+        zoneSel.value = '__new__';
+        const newRow = $('map-boundary-new-zone-row');
+        if (newRow) newRow.style.display = 'block';
+        const newIdEl = $('map-boundary-new-zone-id');
+        if (newIdEl) { newIdEl.value = ''; newIdEl.focus(); }
+      }
+    });
+
+    document.getElementById('dup-cancel').addEventListener('click', () => {
+      modal.remove();
+      cancelDraw();
+    });
+  }
+
+  function finishBoundarySave() {
+    _pendingGeoJSON = null;
+    if (_drawnItems) _drawnItems.clearLayers();
+    const panel = $('map-boundary-panel');
+    if (panel) panel.style.display = 'none';
+    loadBoundaries();
+    if (window.Auth && Auth.isSignedIn() && window.Sync) {
+      Sync.pushBoundaries().catch(console.warn);
+    }
   }
 
   /* ── A-7: Zone management panel ── */
@@ -746,6 +795,7 @@ var PropertyMap = (() => {
         const lat = parseFloat(obs.lat || obs.latitude);
         const lng = parseFloat(obs.lng || obs.longitude);
         if (lat && lng && !isNaN(lat) && !isNaN(lng)) {
+          _map.closePopup();
           _map.setView([lat, lng], 19);
           App.toast(`📍 ${obs.common_name}`);
         } else {
@@ -758,13 +808,18 @@ var PropertyMap = (() => {
   /* Fly to a zone boundary — called from Tasks zone-group view */
   function flyToZone(zoneId) {
     App.switchTab('map');
-    // Allow tab switch to render, then pan
     setTimeout(() => {
       if (!_map) return;
       if (_initialized) _map.invalidateSize();
       const bounds = _zoneBoundsMap[zoneId];
       if (bounds && bounds.isValid()) {
         _map.fitBounds(bounds, { padding: [40, 40], maxZoom: 19 });
+        // Flash the boundary polygon so the user can spot it
+        const layer = _zoneLayers[zoneId];
+        if (layer) {
+          layer.setStyle({ fillOpacity: 0.55, weight: 5 });
+          setTimeout(() => layer.setStyle({ fillOpacity: 0.15, weight: 2 }), 900);
+        }
       } else {
         App.toast(`No boundary drawn for Zone ${zoneId} yet`);
       }
