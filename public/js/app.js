@@ -1,6 +1,6 @@
 /* app.js — Field Companion core: routing, data loading, IndexedDB, toast, offline */
 
-const APP_BUILD = '2026-06-02-a';   // bump this letter each deploy for version tracking
+const APP_BUILD = '2026-06-02-b';   // bump this letter each deploy for version tracking
 
 const App = (() => {
   let _zones = [];
@@ -151,8 +151,16 @@ const App = (() => {
     _propertyCtx = ctx;
   }
 
-  function getZones()       { return _zones; }
-  function getZone(id)      { return _zones.find(z => z.id === id); }
+  function getCustomZones() {
+    try { return JSON.parse(localStorage.getItem('fc_custom_zones') || '[]'); } catch { return []; }
+  }
+  function saveCustomZone(zone) {
+    const existing = getCustomZones().filter(z => z.id !== zone.id);
+    existing.push(zone);
+    localStorage.setItem('fc_custom_zones', JSON.stringify(existing));
+  }
+  function getZones()  { return [..._zones, ...getCustomZones().filter(c => !_zones.find(z => z.id === c.id))]; }
+  function getZone(id) { return getZones().find(z => z.id === id); }
   function getTasks()       { return _tasks; }
   function getDriveLinks()  { return _driveLinks; }
   function getPropertyCtx() { return _propertyCtx; }
@@ -210,6 +218,7 @@ const App = (() => {
       startY = e.touches[0].clientY;
     }, { passive: true });
     screensEl.addEventListener('touchend', e => {
+      if (_currentTab === 'map') return;   // map needs swipe for panning
       const dx = e.changedTouches[0].clientX - startX;
       const dy = e.changedTouches[0].clientY - startY;
       // Require a clear horizontal swipe (min 70px, more horizontal than vertical)
@@ -479,7 +488,7 @@ const App = (() => {
   return {
     init,
     getDB, saveObservation, updateObservation, getAllObservations, getObservationsByZone, deleteObservation, getPendingSyncCount, markObservationsSynced,
-    getZones, getZone, getTasks, getDriveLinks, getPropertyCtx,
+    getZones, getZone, saveCustomZone, getTasks, getDriveLinks, getPropertyCtx,
     getApiKey, setApiKey,
     getPlantNetKey, setPlantNetKey, clearPlantNetKey,
     getConfidenceThreshold, setConfidenceThreshold,

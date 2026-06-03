@@ -10,7 +10,7 @@ var Tasks = (() => {
   let _cloudMode   = false;
   let _loading     = false;
   let _editingId   = null;   // task id currently in edit mode (null = none)
-  let _viewMode    = 'season';  // 'season' | 'zone'
+  let _viewMode    = localStorage.getItem('fc_tasks_view') || 'season'; // 'season' | 'zone'
 
   const $ = id => document.getElementById(id);
 
@@ -418,14 +418,14 @@ var Tasks = (() => {
     if (_viewMode === 'zone') {
       container.innerHTML = toggleHTML + zoneGroupsHTML();
       container.querySelectorAll('.tasks-view-toggle').forEach(btn =>
-        btn.addEventListener('click', () => { _viewMode = btn.dataset.view; render(); })
+        btn.addEventListener('click', () => { _viewMode = btn.dataset.view; localStorage.setItem('fc_tasks_view', _viewMode); render(); })
       );
       wireZoneGroupEvents();
     } else {
       const curSeason = currentSeasonId();
       container.innerHTML = toggleHTML + SEASONS.map(s => seasonOuterHTML(s, s.id === curSeason)).join('');
       container.querySelectorAll('.tasks-view-toggle').forEach(btn =>
-        btn.addEventListener('click', () => { _viewMode = btn.dataset.view; render(); })
+        btn.addEventListener('click', () => { _viewMode = btn.dataset.view; localStorage.setItem('fc_tasks_view', _viewMode); render(); })
       );
       SEASONS.forEach(s => wireSeasonEvents(s.id));
     }

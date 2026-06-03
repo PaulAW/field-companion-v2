@@ -544,15 +544,22 @@ var PlantID = (() => {
 
     const csvRow    = buildCSVRow(result, zone, notes);
     const isKeystone = result.keystone ? '<span class="badge badge-keystone">⭐ Keystone</span>' : '';
-    const pnBadge = _plantNetCandidates && _plantNetCandidates.length
-      ? `<div class="plantnet-badge">🌿 PlantNet: ${esc(_plantNetCandidates[0].scientificName)} (${_plantNetCandidates[0].score}%)</div>`
-      : '';
+    const usedPlantNet = !!(  _plantNetCandidates && _plantNetCandidates.length);
+    const pnTop = usedPlantNet ? _plantNetCandidates[0] : null;
+    // Detect disagreement: PlantNet top genus vs Claude genus
+    const claudeGenus = (result.latin_name || '').split(' ')[0].toLowerCase();
+    const pnGenus     = pnTop ? pnTop.scientificName.split(' ')[0].toLowerCase() : '';
+    const disagrees   = pnTop && claudeGenus && pnGenus && claudeGenus !== pnGenus;
+    const sourceLabel = usedPlantNet
+      ? `<div style="font-size:10px;color:var(--muted);margin-bottom:4px">🤖 AI identified &nbsp;·&nbsp; 🌿 PlantNet hint: <em>${esc(pnTop.scientificName)}</em> (${pnTop.score}%)${disagrees ? ' <span style="color:#e65100;font-weight:600">⚠️ disagree</span>' : ''}</div>`
+      : `<div style="font-size:10px;color:var(--muted);margin-bottom:4px">🤖 AI identified (Claude only)</div>`;
+    const pnBadge = '';  // replaced by sourceLabel below
 
     container.innerHTML = `
       <div class="result-card">
+        ${sourceLabel}
         <div class="result-name">${esc(result.common_name || 'Unknown plant')}</div>
         <div class="result-latin">${esc(result.latin_name || '')}</div>
-        ${pnBadge}
         <div style="display:flex;gap:6px;flex-wrap:wrap;margin:6px 0">${nativeStatusBadge(result.native_status)} ${isKeystone}</div>
         ${confidenceBarHTML(result.confidence)}
         <div class="action-box ${actionClass(result.recommended_action)}" style="margin-top:10px">

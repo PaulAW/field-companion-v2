@@ -497,24 +497,26 @@ var PropertyMap = (() => {
       App.toast('Property boundary saved ✓');
     } else {
       let zoneId = ($('map-boundary-zone') || {}).value;
-      if (zoneId === '__new__') {
+      const isNew = zoneId === '__new__';
+      if (isNew) {
         const newId = ($('map-boundary-new-zone-id') || {}).value.trim().toUpperCase();
-        if (!newId) { App.toast('Enter a zone ID'); return; }
+        if (!newId) { App.toast('Enter a zone ID (single letter)'); return; }
         zoneId = newId;
       }
       if (!zoneId) { App.toast('Select a zone'); return; }
       const existing = JSON.parse(localStorage.getItem('fc_zone_boundaries') || '{}');
       if (existing[zoneId]) {
-        // Show a clear 3-choice modal instead of confusing OK/Cancel confirm
         showDuplicateZoneModal(zoneId);
         return;
       }
       existing[zoneId] = _pendingGeoJSON;
       localStorage.setItem('fc_zone_boundaries', JSON.stringify(existing));
       App.toast(`Zone ${zoneId} boundary saved ✓`);
+      finishBoundarySave(isNew ? zoneId : null);
+      return;
     }
 
-    finishBoundarySave();
+    finishBoundarySave(null);
   }
 
   function cancelDraw() {
@@ -543,7 +545,7 @@ var PropertyMap = (() => {
       existing[zoneId] = _pendingGeoJSON;
       localStorage.setItem('fc_zone_boundaries', JSON.stringify(existing));
       App.toast(`Zone ${zoneId} boundary replaced ✓`);
-      finishBoundarySave();
+      finishBoundarySave(null);
     });
 
     document.getElementById('dup-new').addEventListener('click', () => {
@@ -565,7 +567,7 @@ var PropertyMap = (() => {
     });
   }
 
-  function finishBoundarySave() {
+  function finishBoundarySave(newZoneId) {
     _pendingGeoJSON = null;
     if (_drawnItems) _drawnItems.clearLayers();
     const panel = $('map-boundary-panel');
@@ -574,6 +576,45 @@ var PropertyMap = (() => {
     if (window.Auth && Auth.isSignedIn() && window.Sync) {
       Sync.pushBoundaries().catch(console.warn);
     }
+    // If this was a brand-new zone ID, prompt user to fill in zone details
+    if (newZoneId && !App.getZone(newZoneId)) {
+      setTimeout(() => promptNewZoneInfo(newZoneId), 400);
+    }
+  }
+
+  function promptNewZoneInfo(zoneId) {
+    const modal = document.createElement('div');
+    modal.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:2000;display:flex;align-items:flex-end;';
+    modal.innerHTML = `
+      <div style="background:var(--cream);border-radius:20px 20px 0 0;padding:20px 16px 40px;width:100%;max-width:480px;margin:0 auto">
+        <h3 style="font-size:16px;margin:0 0 6px">Zone ${esc(zoneId)} — add info</h3>
+        <p style="font-size:12px;color:var(--muted);margin:0 0 14px">New zone boundary saved. Give it a name and description so it appears in all lists.</p>
+        <div class="field"><label class="lbl">Zone name</label>
+          <input type="text" id="nz-name" placeholder="e.g. Creek Corridor" style="width:100%"></div>
+        <div class="field" style="margin-top:8px"><label class="lbl">Description (optional)</label>
+          <textarea id="nz-desc" rows="2" style="width:100%;resize:vertical" placeholder="What's in this zone?"></textarea></div>
+        <div class="field" style="margin-top:8px"><label class="lbl">Goals (optional)</label>
+          <textarea id="nz-goals" rows="2" style="width:100%;resize:vertical" placeholder="What do you want to achieve here?"></textarea></div>
+        <div style="display:flex;gap:8px;margin-top:14px">
+          <button class="btn" id="nz-save" type="button">Save zone info</button>
+          <button class="btn btn-outline" id="nz-skip" type="button">Skip for now</button>
+        </div>
+      </div>`;
+    document.body.appendChild(modal);
+    const nameEl = document.getElementById('nz-name');
+    if (nameEl) nameEl.focus();
+    const close = () => modal.remove();
+    document.getElementById('nz-skip').addEventListener('click', close);
+    document.getElementById('nz-save').addEventListener('click', () => {
+      const name  = (document.getElementById('nz-name')  || {}).value.trim() || `Zone ${zoneId}`;
+      const desc  = (document.getElementById('nz-desc')  || {}).value.trim() || '';
+      const goals = (document.getElementById('nz-goals') || {}).value.trim() || '';
+      App.saveCustomZone({ id: zoneId, name, description: desc, goals, notes: '',
+        acres: 0, elevation: '', urgency: 'low', priority_action: null,
+        invasives: [], target_natives: [] });
+      close();
+      App.toast(`Zone ${zoneId} — ${name} saved ✓`);
+    });
   }
 
   /* ── A-7: Zone management panel ── */
@@ -814,11 +855,15 @@ var PropertyMap = (() => {
       const bounds = _zoneBoundsMap[zoneId];
       if (bounds && bounds.isValid()) {
         _map.fitBounds(bounds, { padding: [40, 40], maxZoom: 19 });
-        // Flash the boundary polygon so the user can spot it
+        // Double-flash the boundary polygon so the user can spot it
         const layer = _zoneLayers[zoneId];
         if (layer) {
-          layer.setStyle({ fillOpacity: 0.55, weight: 5 });
-          setTimeout(() => layer.setStyle({ fillOpacity: 0.15, weight: 2 }), 900);
+          const normal = { fillOpacity: 0.15, weight: 2 };
+          const bright = { fillOpacity: 0.6,  weight: 5  };
+          layer.setStyle(bright);
+          setTimeout(() => layer.setStyle(normal), 450);
+          setTimeout(() => layer.setStyle(bright), 750);
+          setTimeout(() => layer.setStyle(normal), 1200);
         }
       } else {
         App.toast(`No boundary drawn for Zone ${zoneId} yet`);
