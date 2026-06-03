@@ -1,6 +1,6 @@
 /* app.js — Field Companion core: routing, data loading, IndexedDB, toast, offline */
 
-const APP_BUILD = '2026-06-02-b';   // bump this letter each deploy for version tracking
+const APP_BUILD = '2026-06-03-a';   // bump this letter each deploy for version tracking
 
 const App = (() => {
   let _zones = [];
@@ -183,7 +183,7 @@ const App = (() => {
   let _currentTab = 'plant-id';
   const _tabModules  = {};
   const _tabScroll   = {};          // saved scrollTop per tab id
-  const TAB_ORDER    = ['plant-id','log','zones','tasks','map','drive'];
+  const TAB_ORDER    = ['plant-id','log','zones','tasks','map','plants','drive'];
 
   function registerTab(id, mod) { _tabModules[id] = mod; }
 
@@ -454,6 +454,7 @@ const App = (() => {
       ['Zones',        window.Zones],
       ['Tasks',        window.Tasks],
       ['PropertyMap',  window.PropertyMap],
+      ['Plants',       window.Plants],
       ['Drive',        window.Drive],
     ];
     for (const [name, mod] of mods) {

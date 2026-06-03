@@ -748,3 +748,29 @@ input:focus, select:focus, textarea:focus {
 .badge-naturalized { background: #0097a7; color: #fff; }
 .map-filter-naturalized { color: #0097a7; }
 .map-filter-naturalized.active { background: #0097a7; color: #fff; border-color: #0097a7; }
+
+/* ── Desktop / wide-screen layout ── */
+@media (min-width: 768px) {
+  #app { max-width: 720px; }
+  #screens { padding: 20px 24px calc(var(--nav-h) + 20px); }
+  header { padding: 12px 24px; }
+  header h1 { font-size: 22px; }
+  .card { padding: 18px 20px; }
+  .btn { font-size: 14px; padding: 9px 16px; }
+  .btn-sm { font-size: 12px; padding: 5px 12px; }
+  .tab-btn { font-size: 12px; gap: 3px; }
+  .tab-btn .ico { font-size: 22px; }
+  .zone-grid { grid-template-columns: repeat(4, 1fr); }
+  .result-name { font-size: 22px; }
+  .result-latin { font-size: 14px; }
+  .task-item { padding: 12px 16px; font-size: 14px; }
+  .season-title { font-size: 16px; }
+}
+@media (min-width: 1100px) {
+  #app { max-width: 900px; }
+  #screens { padding: 24px 32px calc(var(--nav-h) + 24px); }
+}
+
+/* ── Plants tab ── */
+.plants-status-header { font-size:13px; font-weight:600; color:var(--green); padding:10px 0 4px; border-bottom:2px solid var(--border); margin-bottom:6px; }
+.plants-species-card { user-select:none; }

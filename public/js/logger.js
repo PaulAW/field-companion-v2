@@ -19,6 +19,9 @@ var Logger = (() => {
   }
 
   function onShow() {
+    // Always refresh zone dropdowns so new custom zones appear
+    populateZoneSelect('log-zone');
+    populateZoneSelect('log-history-zone-filter');
     if (_mode === 'history') loadHistory();
     if (_mode === 'new') resetForm();
   }

@@ -10,7 +10,12 @@ var Tasks = (() => {
   let _cloudMode   = false;
   let _loading     = false;
   let _editingId   = null;   // task id currently in edit mode (null = none)
-  let _viewMode    = localStorage.getItem('fc_tasks_view') || 'season'; // 'season' | 'zone'
+  let _viewMode       = localStorage.getItem('fc_tasks_view') || 'season'; // 'season' | 'zone'
+  let _openZoneGroups = new Set(JSON.parse(localStorage.getItem('fc_open_zone_groups') || '[]'));
+
+  function saveOpenGroups() {
+    localStorage.setItem('fc_open_zone_groups', JSON.stringify([..._openZoneGroups]));
+  }
 
   const $ = id => document.getElementById(id);
 
@@ -459,10 +464,16 @@ var Tasks = (() => {
 
     if (ordered.length === 0) return '<p style="color:var(--muted);font-size:13px">No tasks yet.</p>';
 
-    return ordered.map((zId, i) => zoneGroupHTML(zId, allZones, i === 0)).join('');
+    // First-time: open first group by default if nothing saved
+    if (_openZoneGroups.size === 0 && ordered.length > 0) {
+      _openZoneGroups.add(ordered[0] || '__none__');
+      saveOpenGroups();
+    }
+    return ordered.map(zId => zoneGroupHTML(zId, allZones)).join('');
   }
 
-  function zoneGroupHTML(zoneId, allZones, isOpen) {
+  function zoneGroupHTML(zoneId, allZones) {
+    const isOpen = _openZoneGroups.has(zoneId || '__none__');
     const zone    = allZones.find(z => z.id === zoneId);
     const label   = zoneId ? `Zone ${zoneId}${zone ? ' — ' + zone.name : ''}` : 'Any Zone';
     const tasks   = zoneId
@@ -511,6 +522,10 @@ var Tasks = (() => {
         body.classList.toggle('open', !isOpen);
         hd.classList.toggle('open', !isOpen);
         if (prog) prog.style.display = isOpen ? 'none' : '';
+        // Persist open/closed state
+        const gId = groupId === '__none__' ? '__none__' : groupId;
+        if (isOpen) _openZoneGroups.delete(gId); else _openZoneGroups.add(gId);
+        saveOpenGroups();
       });
       // Wire task rows
       const taskList = $(`zgroup-tasks-${groupId}`);

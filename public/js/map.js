@@ -36,12 +36,26 @@ var PropertyMap = (() => {
     App.registerTab('map', { onShow });
   }
 
+  function saveMapPos() {
+    if (!_map) return;
+    const c = _map.getCenter();
+    localStorage.setItem('fc_map_pos', JSON.stringify({ lat: c.lat, lng: c.lng, zoom: _map.getZoom() }));
+  }
+
   function onShow() {
     if (!_initialized) {
       _initialized = true;
       initMap();
     } else {
-      setTimeout(() => { if (_map) _map.invalidateSize(); }, 80);
+      setTimeout(() => {
+        if (!_map) return;
+        _map.invalidateSize();
+        // Restore last-saved position so the map re-opens where you left it
+        try {
+          const saved = JSON.parse(localStorage.getItem('fc_map_pos') || 'null');
+          if (saved) _map.setView([saved.lat, saved.lng], saved.zoom, { animate: false });
+        } catch(e) {}
+      }, 80);
       refreshObservations();
       // Re-pull boundaries in case auth state changed since last visit
       if (window.Auth && Auth.isSignedIn() && window.Sync) {
@@ -59,6 +73,9 @@ var PropertyMap = (() => {
 
     _map = L.map('map-main', { zoomControl: true, attributionControl: true });
     _map.setView(center, zoom);
+
+    // Save position whenever user pans or zooms
+    _map.on('moveend', saveMapPos);
 
     /* Tile layers */
     const satellite = L.tileLayer(ESRI_TILES, {

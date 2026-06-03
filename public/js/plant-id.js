@@ -546,13 +546,14 @@ var PlantID = (() => {
     const isKeystone = result.keystone ? '<span class="badge badge-keystone">⭐ Keystone</span>' : '';
     const usedPlantNet = !!(  _plantNetCandidates && _plantNetCandidates.length);
     const pnTop = usedPlantNet ? _plantNetCandidates[0] : null;
-    // Detect disagreement: PlantNet top genus vs Claude genus
-    const claudeGenus = (result.latin_name || '').split(' ')[0].toLowerCase();
-    const pnGenus     = pnTop ? pnTop.scientificName.split(' ')[0].toLowerCase() : '';
-    const disagrees   = pnTop && claudeGenus && pnGenus && claudeGenus !== pnGenus;
+    // Detect disagreement: compare first two words of scientific name (genus + species)
+    const normSci = s => (s || '').toLowerCase().split(' ').slice(0, 2).join(' ').trim();
+    const claudeSci = normSci(result.latin_name);
+    const pnSci     = pnTop ? normSci(pnTop.scientificName) : '';
+    const disagrees = pnTop && claudeSci && pnSci && claudeSci !== pnSci;
     const sourceLabel = usedPlantNet
-      ? `<div style="font-size:10px;color:var(--muted);margin-bottom:4px">🤖 AI identified &nbsp;·&nbsp; 🌿 PlantNet hint: <em>${esc(pnTop.scientificName)}</em> (${pnTop.score}%)${disagrees ? ' <span style="color:#e65100;font-weight:600">⚠️ disagree</span>' : ''}</div>`
-      : `<div style="font-size:10px;color:var(--muted);margin-bottom:4px">🤖 AI identified (Claude only)</div>`;
+      ? `<div style="font-size:10px;color:var(--muted);margin-bottom:4px">🤖 Claude AI &nbsp;·&nbsp; 🌿 PlantNet suggested: <em>${esc(pnTop.scientificName)}</em> (${pnTop.score}%)${disagrees ? `&nbsp;<span style="color:#e65100;font-weight:600" title="Claude and PlantNet identified different species — use your judgment">⚠️ IDs differ</span>` : ''}</div>`
+      : `<div style="font-size:10px;color:var(--muted);margin-bottom:4px">🤖 Claude AI only (no PlantNet key)</div>`;
     const pnBadge = '';  // replaced by sourceLabel below
 
     container.innerHTML = `
