@@ -24,7 +24,10 @@ var Tasks = (() => {
     onShow();
   }
 
+  let _restoreScrollOnRender = false;
+
   function onShow() {
+    _restoreScrollOnRender = true;   // flag render() to restore scroll after content loads
     const wasCloud = _cloudMode;
     _cloudMode = !!(window.Auth && Auth.isSignedIn());
     if (_cloudMode) {
@@ -433,6 +436,14 @@ var Tasks = (() => {
         btn.addEventListener('click', () => { _viewMode = btn.dataset.view; localStorage.setItem('fc_tasks_view', _viewMode); render(); })
       );
       SEASONS.forEach(s => wireSeasonEvents(s.id));
+    }
+
+    // Restore scroll position when returning to this tab after async cloud load
+    if (_restoreScrollOnRender) {
+      _restoreScrollOnRender = false;
+      const screensEl = document.getElementById('screens');
+      const saved = App.getTabScroll ? App.getTabScroll('tasks') : 0;
+      if (screensEl && saved) requestAnimationFrame(() => { screensEl.scrollTop = saved; });
     }
 
     // Apply any pending external edit request (e.g. from Zone detail)

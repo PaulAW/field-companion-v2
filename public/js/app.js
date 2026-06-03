@@ -1,6 +1,6 @@
 /* app.js — Field Companion core: routing, data loading, IndexedDB, toast, offline */
 
-const APP_BUILD = '2026-06-03-a';   // bump this letter each deploy for version tracking
+const APP_BUILD = '2026-06-03-b';   // bump this letter each deploy for version tracking
 
 const App = (() => {
   let _zones = [];
@@ -493,7 +493,7 @@ const App = (() => {
     getApiKey, setApiKey,
     getPlantNetKey, setPlantNetKey, clearPlantNetKey,
     getConfidenceThreshold, setConfidenceThreshold,
-    registerTab, switchTab,
+    registerTab, switchTab, getTabScroll: id => _tabScroll[id] || 0,
     toast,
     todayISO, formatDate,
     obsToCSVRow, obsArrayToCSV, copyToClipboard, downloadCSV,

@@ -83,7 +83,11 @@ var Auth = (() => {
         if (window.Sync) Sync.fullSync();
       })
       .catch(e => {
-        App.toast('Sign-in error: ' + e.message);
+        if (e.message === 'Access denied') {
+          App.toast('⛔ This app is private. Only the registered account can sign in.', 5000);
+        } else {
+          App.toast('Sign-in error: ' + e.message);
+        }
       });
   }
 

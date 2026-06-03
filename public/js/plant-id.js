@@ -154,11 +154,18 @@ var PlantID = (() => {
 
   function openMapPicker() {
     if (window.MapPicker) {
-      const ctx = App.getPropertyCtx();
-      const center = ctx.map_center || {};
+      // Priority: captured GPS → saved main map position → property center
+      let lat = _gpsCoords ? _gpsCoords.lat : null;
+      let lng = _gpsCoords ? _gpsCoords.lng : null;
+      if (!lat || !lng) {
+        try {
+          const saved = JSON.parse(localStorage.getItem('fc_map_pos') || 'null');
+          if (saved) { lat = saved.lat; lng = saved.lng; }
+        } catch(e) {}
+      }
       MapPicker.open({
-        lat:  _gpsCoords ? _gpsCoords.lat : (center.lat || 41.0686),
-        lng:  _gpsCoords ? _gpsCoords.lng : (center.lng || -91.9694),
+        lat:  lat || 41.0686,
+        lng:  lng || -91.9694,
         zone: $('pid-zone').value || null,
         onSelect: coords => setGPSCoords(coords),
       });
@@ -567,6 +574,20 @@ var PlantID = (() => {
           ${actionIcon(result.recommended_action)} <strong>${esc(result.recommended_action)}</strong> — ${esc(result.action_detail || '')}
         </div>
         ${result.fun_fact ? `<div class="fun-fact">📌 ${esc(result.fun_fact)}</div>` : ''}
+        ${disagrees ? `
+        <div style="margin-top:10px;padding:10px 12px;background:#fff3e0;border-radius:8px;border-left:3px solid #e65100">
+          <div style="font-size:12px;font-weight:600;color:#e65100;margin-bottom:4px">⚠️ IDs differ — which is right?</div>
+          <div style="font-size:11px;color:#555;line-height:1.5">
+            <strong>Claude AI</strong> used SE Iowa geographic context to prefer <em>${esc(result.latin_name)}</em> (${esc(result.common_name)}).
+            <strong>PlantNet</strong> matched the photo visually to <em>${esc(pnTop.scientificName)}</em> (${pnTop.score}%) using its image database only — it doesn't know your location.
+            Claude's geographic reasoning is usually more accurate for native/naturalized plants.
+            <strong>When PlantNet may be right:</strong> for cultivated, ornamental, or introduced plants that Claude hasn't seen in this context.
+          </div>
+          <div style="margin-top:8px;display:flex;gap:6px;flex-wrap:wrap">
+            <button class="btn btn-sm btn-outline" id="pid-use-pn" style="font-size:11px;color:#e65100;border-color:#e65100">💾 Save as ${esc(pnTop.scientificName)} instead</button>
+            <button class="btn btn-sm btn-outline" id="pid-copy-prompt" style="font-size:11px">📋 Copy verification prompt</button>
+          </div>
+        </div>` : ''}
         <div style="margin-top:14px;border-top:1px solid var(--border);padding-top:12px">
           <div class="lbl">Log entry — copy to Google Sheet</div>
           <div class="mono-box" id="pid-csv-row">${esc(csvRow)}</div>
@@ -602,6 +623,23 @@ var PlantID = (() => {
     $('pid-copy-csv').addEventListener('click', () => App.copyToClipboard(csvRow));
     $('pid-save-obs').addEventListener('click', () => saveObservation(result, zone, notes, csvRow));
     $('pid-new-plant').addEventListener('click', clearForm);
+
+    // Disagreement buttons (only exist when disagrees === true)
+    const usePnBtn = $('pid-use-pn');
+    if (usePnBtn && pnTop) {
+      usePnBtn.addEventListener('click', () => {
+        const pnResult = { ...result, common_name: pnTop.commonNames?.[0] || pnTop.scientificName, latin_name: pnTop.scientificName };
+        saveObservation(pnResult, zone, notes, buildCSVRow(pnResult, zone, notes));
+      });
+    }
+    const copyPromptBtn = $('pid-copy-prompt');
+    if (copyPromptBtn && pnTop) {
+      copyPromptBtn.addEventListener('click', () => {
+        const prompt = `Plant ID discrepancy — need expert help\n\nLocation: SE Iowa, zip 52556, USDA zone 5b/6a (native woodland/prairie restoration property, ~7.77 acres)\n\nClaude AI identified: ${result.common_name} (${result.latin_name}), Confidence: ${result.confidence}\nPlantNet identified: ${pnTop.scientificName} (${pnTop.score}% match)\n\nBoth are different species. Please help me:\n1. What are the key visual differences between ${result.latin_name} and ${pnTop.scientificName}?\n2. Which is more likely in SE Iowa riparian/woodland habitat?\n3. What additional photos (flower, fruit, bark, habit) would confirm the ID?`;
+        App.copyToClipboard(prompt);
+        App.toast('Verification prompt copied — paste into Claude.ai ✓');
+      });
+    }
 
     const addRecTaskBtn = $('pid-add-rec-task');
     if (addRecTaskBtn && window.Tasks) {

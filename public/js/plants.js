@@ -1,10 +1,11 @@
 /* plants.js — Species inventory: aggregates all observations by common name */
 
 var Plants = (() => {
-  let _obs      = [];
-  let _groupBy  = localStorage.getItem('fc_plants_group') || 'status';  // 'status' | 'all'
-  let _sortBy   = localStorage.getItem('fc_plants_sort')  || 'count';   // 'count' | 'name' | 'date'
-  let _expanded = new Set(JSON.parse(localStorage.getItem('fc_plants_expanded') || '[]'));
+  let _obs              = [];
+  let _groupBy          = localStorage.getItem('fc_plants_group') || 'status';
+  let _sortBy           = localStorage.getItem('fc_plants_sort')  || 'count';
+  let _expanded         = new Set(JSON.parse(localStorage.getItem('fc_plants_expanded') || '[]'));
+  let _collapsedStatuses = new Set(JSON.parse(localStorage.getItem('fc_plants_collapsed_status') || '[]'));
 
   const $ = id => document.getElementById(id);
 
@@ -13,12 +14,16 @@ var Plants = (() => {
   }
 
   async function onShow() {
+    const screensEl = document.getElementById('screens');
+    const savedScroll = App.getTabScroll ? App.getTabScroll('plants') : 0;
     try {
       _obs = (await App.getAllObservations()).filter(o => !o.removed);
     } catch(e) {
       _obs = [];
     }
     render();
+    // Restore scroll after async render
+    if (screensEl && savedScroll) requestAnimationFrame(() => { screensEl.scrollTop = savedScroll; });
   }
 
   /* ── Aggregate observations by common_name ── */
@@ -91,8 +96,12 @@ var Plants = (() => {
       STATUS_ORDER.forEach(status => {
         const group = species.filter(s => s.native_status === status);
         if (!group.length) return;
-        listHTML += `<div class="plants-status-header">${STATUS_EMOJI[status] || ''} ${status} <span style="font-size:11px;font-weight:400;color:var(--muted)">(${group.length})</span></div>`;
-        group.forEach(s => { listHTML += speciesCardHTML(s); });
+        const collapsed = _collapsedStatuses.has(status);
+        listHTML += `<div class="plants-status-header" data-status-toggle="${esc(status)}" style="cursor:pointer;display:flex;justify-content:space-between;align-items:center">
+          <span>${STATUS_EMOJI[status] || ''} ${status} <span style="font-size:11px;font-weight:400;color:var(--muted)">(${group.length})</span></span>
+          <span style="font-size:12px">${collapsed ? '▸' : '▾'}</span>
+        </div>`;
+        if (!collapsed) group.forEach(s => { listHTML += speciesCardHTML(s); });
       });
     } else {
       species.forEach(s => { listHTML += speciesCardHTML(s); });
@@ -105,6 +114,13 @@ var Plants = (() => {
       btn.addEventListener('click', () => { _groupBy = btn.dataset.group; localStorage.setItem('fc_plants_group', _groupBy); render(); }));
     container.querySelectorAll('[data-sort]').forEach(btn =>
       btn.addEventListener('click', () => { _sortBy = btn.dataset.sort; localStorage.setItem('fc_plants_sort', _sortBy); render(); }));
+    container.querySelectorAll('[data-status-toggle]').forEach(hd =>
+      hd.addEventListener('click', () => {
+        const s = hd.dataset.statusToggle;
+        if (_collapsedStatuses.has(s)) _collapsedStatuses.delete(s); else _collapsedStatuses.add(s);
+        localStorage.setItem('fc_plants_collapsed_status', JSON.stringify([..._collapsedStatuses]));
+        render();
+      }));
 
     // Wire species cards
     container.querySelectorAll('.plants-species-card').forEach(card => {
