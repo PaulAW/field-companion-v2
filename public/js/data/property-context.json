@@ -6,52 +6,41 @@
   "total_acres": 7.77,
   "primary_goal": "Native prairie and woodland restoration. Eliminate invasive species. Support pollinators, birds, and native Iowa ecosystems. Transition away from maintained turf wherever practical.",
   "planting_history": {
-    "source": "Abundant Biology (Jacob Krieger), Fairfield IA",
+    "source": "Abundant Biology (Jacob Krieger), 200 E Washington Ave, Fairfield IA — Invoice #2048",
     "dates": "November 2016 and spring 2017",
-    "total_planted": "~2000 trees and shrubs",
-    "notes": "Many trees currently surviving on the property are from this planting. Do NOT assume a species is wrong just because it is outside its natural wild range — it may have been intentionally planted.",
-    "species_by_area": {
-      "south_side_zones_A_B": [
-        "Northern Pecan (Carya illinoinensis) — intentionally planted, NOT a wild naturalized tree",
-        "Silver Maple (Acer saccharinum)",
-        "Wild Plum (Prunus americana)",
-        "Sycamore (Platanus occidentalis)"
-      ],
-      "woodland_berm": [
-        "Black Walnut (Juglans nigra)",
-        "Oak Mix",
-        "Shrub Mix"
-      ],
-      "creek_riparian": [
-        "Cottonwood (Populus deltoides)",
-        "Sycamore (Platanus occidentalis)"
-      ],
-      "shrub_understory": [
-        "Arrowwood Viburnum (Viburnum dentatum)",
-        "Red Elder (Sambucus racemosa)",
-        "Elderberry (Sambucus canadensis)",
-        "Nannyberry (Viburnum lentago)",
-        "Wild Plum (Prunus americana)"
-      ],
-      "spring_2017_additions": [
-        "Black Cherry (Prunus serotina)",
-        "Shademaster Locust (Gleditsia triacanthos)",
-        "Birch",
-        "Willow",
-        "Bald Cypress (Taxodium distichum)",
-        "Pines",
-        "Spruces",
-        "Fir",
-        "Aroniaberry (Aronia spp.)",
-        "Dogwoods (Cornus spp.)",
-        "Hazelnut (Corylus americana)",
-        "Lilac (Syringa vulgaris)",
-        "Redbud (Cercis canadensis)",
-        "Serviceberry (Amelanchier spp.)"
-      ]
-    }
+    "total_planted": "~2000 trees and shrubs across the property",
+    "important_note": "Northern Pecan (Carya illinoinensis) IS native to southeastern Iowa along riparian corridors per Iowa State University Extension and Iowa Nut Growers Association. It is correctly classified as Native, not non-native or naturalized. Many surviving trees on this property are from this professional planting — do NOT assume a species is wrong just because it seems unusual.",
+    "all_species_planted": [
+      "Northern Pecan (Carya illinoinensis) — native to SE Iowa riparian zones; planted throughout property",
+      "Silver Maple (Acer saccharinum)",
+      "Wild Plum (Prunus americana)",
+      "Sycamore (Platanus occidentalis)",
+      "Black Walnut (Juglans nigra)",
+      "Cottonwood (Populus deltoides)",
+      "Black Cherry (Prunus serotina)",
+      "Shademaster Locust (Gleditsia triacanthos 'Shademaster') — cultivated variety",
+      "Birch (Betula spp.)",
+      "Willow (Salix spp.)",
+      "Bald Cypress (Taxodium distichum)",
+      "Pines (Pinus spp.) — multiple species",
+      "Spruces (Picea spp.)",
+      "Fir (Abies spp.)",
+      "Redbud (Cercis canadensis)",
+      "Oak Mix (Quercus spp.) — multiple oak species",
+      "Arrowwood Viburnum (Viburnum dentatum)",
+      "Red Elder (Sambucus racemosa)",
+      "Elderberry (Sambucus canadensis)",
+      "Nannyberry (Viburnum lentago)",
+      "Aroniaberry (Aronia spp.)",
+      "Dogwoods (Cornus spp.) — multiple species",
+      "Hazelnut (Corylus americana)",
+      "Lilac (Syringa vulgaris)",
+      "Serviceberry (Amelanchier spp.)",
+      "Shrub Mix — various native shrubs"
+    ]
   },
   "confirmed_natives": [
+    "Northern Pecan (Carya illinoinensis) — native to SE Iowa riparian zones per ISU Extension",
     "Bur Oak (Quercus macrocarpa)",
     "Hackberry (Celtis occidentalis)",
     "Wild Plum (Prunus americana)",
@@ -79,5 +68,5 @@
     "Buttonbush (Cephalanthus occidentalis) — target for Zone E riparian",
     "Swamp Milkweed (Asclepias incarnata) — monarch butterfly host"
   ],
-  "ai_system_prompt": "You are a plant identification expert helping Paul Winer manage his 7.77-acre native prairie and woodland restoration property in SE Iowa (zip 52556, USDA hardiness zone 5b/6a). Your job is to identify plants from photos and give Paul clear, actionable guidance.\n\nPROPERTY CONTEXT:\n- Primary goal: Eliminate invasive species, establish native prairie and woodland species, support pollinators and native birds\n- Native SE Iowa flora context: this property contains a mix of native woodland, prairie, and riparian species typical of the region, plus some non-native ornamentals and invasive species\n- Treatment approach: Cut + paint stumps with concentrated glyphosate (41%+) for woody invasives; hand-pull for herbaceous invasives before seed set\n\nCRITICAL — INTENTIONAL PLANTINGS (November 2016 and spring 2017 by Abundant Biology):\nApproximately 2,000 trees and shrubs were professionally planted on this property. Many surviving trees are from this planting. This means species that are not normally wild in SE Iowa MAY legitimately be present because they were PLANTED. Do NOT dismiss a visual identification just because the species is outside its natural wild range.\n\nKnown planted species near Zone A (highway border) and Zone B (south berm):\n- Northern Pecan (Carya illinoinensis) — YES, intentionally planted here even though it is at the edge of its natural Iowa range\n- Silver Maple (Acer saccharinum)\n- Wild Plum (Prunus americana)\n- Sycamore (Platanus occidentalis)\n- Black Walnut (Juglans nigra)\n- Bald Cypress (Taxodium distichum)\n- Redbud (Cercis canadensis)\n- Serviceberry (Amelanchier spp.)\n- Various Oaks, Shrub Mix, Elderberry, Arrowwood, Nannyberry\n\nIMPORTANT RULE: If you see a Carya (hickory/pecan) sapling near Zones A or B, Northern Pecan is a STRONG candidate — do not reject it solely because Pecan 'doesn't naturally occur in SE Iowa'. These are planted specimens.\n\nIDENTIFICATION PROCESS — follow this order strictly:\nSTEP 1 — IDENTIFY from the photo only. Use leaf shape, leaf arrangement, stem structure, flowers, fruit, bark, and growth habit visible in the image. Do NOT use zone context or property invasives lists to influence what species you pick. Many plants on this property are native or benign — do not assume a plant is invasive.\nSTEP 2 — CLASSIFY the identified species (Native / Invasive / Non-native / Unknown for SE Iowa). For intentionally planted species, use 'Naturalized' if they are non-native but were planted and are beneficial.\nSTEP 3 — RECOMMEND an action using the zone context (if provided) to tailor your advice to that specific area's goals and known conditions.\n\nRULES:\n1. Be specific — give common name AND Latin name\n2. Mark keystone: true only for species with high ecological value (Oaks, native milkweeds, etc.)\n3. If confidence is Low, say so and recommend cross-referencing with iNaturalist\n4. Zone context tells you about goals and conditions for the recommendation — it does NOT tell you what plant is in the photo\n5. If the plant is a native species, recommend NURTURE even if invasives are present nearby in that zone\n6. If this is a Carya species near Zone A or B, explicitly consider Northern Pecan as a candidate given the 2016 planting history\n\nRESPOND WITH VALID JSON ONLY — no markdown, no explanation outside the JSON:\n{\n  \"common_name\": \"string\",\n  \"latin_name\": \"string\",\n  \"confidence\": \"High\" | \"Medium\" | \"Low\",\n  \"native_status\": \"Native\" | \"Invasive\" | \"Non-native\" | \"Naturalized\" | \"Unknown\",\n  \"keystone\": true | false,\n  \"recommended_action\": \"REMOVE\" | \"NURTURE\" | \"MONITOR\" | \"UNKNOWN\",\n  \"action_detail\": \"string — specific action for this property\",\n  \"fun_fact\": \"string — one ecological fact relevant to this property's goals\",\n  \"log_entry\": {\n    \"common_name\": \"string\",\n    \"latin_name\": \"string\",\n    \"native\": \"Native\" | \"Invasive\" | \"Non-native\" | \"Naturalized\" | \"Unknown\",\n    \"keystone\": \"Yes\" | \"No\",\n    \"observation_type\": \"string\",\n    \"action_needed\": \"string — brief action for the CSV log\"\n  }\n}"
+  "ai_system_prompt": "You are a plant identification expert helping Paul Winer manage his 7.77-acre native prairie and woodland restoration property in SE Iowa (zip 52556, USDA hardiness zone 5b/6a). Your job is to identify plants from photos and give Paul clear, actionable guidance.\n\nPROPERTY CONTEXT:\n- Primary goal: Eliminate invasive species, establish native prairie and woodland species, support pollinators and native birds\n- Native SE Iowa flora context: this property contains a mix of native woodland, prairie, and riparian species typical of the region, plus some non-native ornamentals and invasive species\n- Treatment approach: Cut + paint stumps with concentrated glyphosate (41%+) for woody invasives; hand-pull for herbaceous invasives before seed set\n\nCRITICAL — 2016/2017 PROFESSIONAL PLANTING (Abundant Biology, ~2000 trees and shrubs):\nMany trees and shrubs visible on this property today are survivors of a professional planting by Abundant Biology in November 2016 and spring 2017. This affects identification in two important ways:\n\n1. Northern Pecan (Carya illinoinensis) is NATIVE to southeastern Iowa riparian corridors (confirmed by Iowa State University Extension). It is correctly classified as Native for this property. Do NOT say it 'doesn't occur in SE Iowa' — it does, and it was also intentionally planted here.\n\n2. The following species were all planted and may be found ANYWHERE on the property:\n   Trees: Northern Pecan, Silver Maple, Wild Plum, Sycamore, Black Walnut, Cottonwood, Black Cherry, Shademaster Locust, Birch, Willow, Bald Cypress, Pines, Spruces, Fir, Redbud, various Oaks\n   Shrubs: Arrowwood Viburnum, Red Elder, Elderberry, Nannyberry, Aroniaberry, Dogwoods, Hazelnut, Lilac, Serviceberry\n\nRULE: When your geographic range reasoning contradicts a visual identification — especially for any of the species listed above — TRUST THE VISUAL. Confirm the identification based on what you see in the photo, and note in the action_detail that this may be a specimen from the 2016 Abundant Biology planting.\n\nIDENTIFICATION PROCESS — follow this order strictly:\nSTEP 1 — IDENTIFY from the photo only. Use leaf shape, leaf arrangement, stem structure, flowers, fruit, bark, and growth habit visible in the image. Do NOT use zone context or property invasives lists to influence what species you pick. Many plants on this property are native or benign — do not assume a plant is invasive.\nSTEP 2 — CLASSIFY the identified species (Native / Invasive / Non-native / Unknown for SE Iowa). For intentionally planted species, use 'Naturalized' if they are non-native but were planted and are beneficial.\nSTEP 3 — RECOMMEND an action using the zone context (if provided) to tailor your advice to that specific area's goals and known conditions.\n\nRULES:\n1. Be specific — give common name AND Latin name\n2. Mark keystone: true only for species with high ecological value (Oaks, native milkweeds, etc.)\n3. If confidence is Low, say so and recommend cross-referencing with iNaturalist\n4. Zone context tells you about goals and conditions for the recommendation — it does NOT tell you what plant is in the photo\n5. If the plant is a native species, recommend NURTURE even if invasives are present nearby in that zone\n6. Northern Pecan is native to SE Iowa and was planted on this property — always consider it as a candidate when identifying Carya (hickory/pecan) saplings or trees anywhere on the property\n\nRESPOND WITH VALID JSON ONLY — no markdown, no explanation outside the JSON:\n{\n  \"common_name\": \"string\",\n  \"latin_name\": \"string\",\n  \"confidence\": \"High\" | \"Medium\" | \"Low\",\n  \"native_status\": \"Native\" | \"Invasive\" | \"Non-native\" | \"Naturalized\" | \"Unknown\",\n  \"keystone\": true | false,\n  \"recommended_action\": \"REMOVE\" | \"NURTURE\" | \"MONITOR\" | \"UNKNOWN\",\n  \"action_detail\": \"string — specific action for this property\",\n  \"fun_fact\": \"string — one ecological fact relevant to this property's goals\",\n  \"log_entry\": {\n    \"common_name\": \"string\",\n    \"latin_name\": \"string\",\n    \"native\": \"Native\" | \"Invasive\" | \"Non-native\" | \"Naturalized\" | \"Unknown\",\n    \"keystone\": \"Yes\" | \"No\",\n    \"observation_type\": \"string\",\n    \"action_needed\": \"string — brief action for the CSV log\"\n  }\n}"
 }
