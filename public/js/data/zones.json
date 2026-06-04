@@ -18,7 +18,13 @@
       "Purple Coneflower (Echinacea purpurea)",
       "Wild Bergamot (Monarda fistulosa)"
     ],
-    "notes": "Check local mowing ordinances before reducing mow frequency. Highway ROW may be county-maintained — confirm property boundaries."
+    "notes": "Check local mowing ordinances before reducing mow frequency. Highway ROW may be county-maintained — confirm property boundaries.",
+    "known_plantings_2016": [
+      "Northern Pecan (Carya illinoinensis) — planted Nov 2016 by Abundant Biology",
+      "Silver Maple (Acer saccharinum) — planted 2016",
+      "Wild Plum (Prunus americana) — planted 2016",
+      "Sycamore (Platanus occidentalis) — planted 2016"
+    ]
   },
   {
     "id": "B",
@@ -41,7 +47,16 @@
       "Gray Dogwood (Cornus racemosa)",
       "Native Elderberry (Sambucus canadensis)"
     ],
-    "notes": "Mulberry spreads aggressively via bird droppings — remove all fruiting trees first. Scout for garlic mustard in spring and treat before seed set. It spreads by the thousands once established."
+    "notes": "Mulberry spreads aggressively via bird droppings — remove all fruiting trees first. Scout for garlic mustard in spring and treat before seed set. It spreads by the thousands once established.",
+    "known_plantings_2016": [
+      "Northern Pecan (Carya illinoinensis) — planted Nov 2016 by Abundant Biology (south berm area)",
+      "Silver Maple (Acer saccharinum) — planted 2016",
+      "Wild Plum (Prunus americana) — planted 2016",
+      "Sycamore (Platanus occidentalis) — planted 2016",
+      "Black Walnut (Juglans nigra) — planted 2016",
+      "Various Oaks — planted 2016",
+      "Shrub Mix — planted 2016"
+    ]
   },
   {
     "id": "C",
