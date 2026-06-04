@@ -690,33 +690,98 @@ var PropertyMap = (() => {
   }
 
   async function deleteZoneBoundary(zoneId) {
-    if (!confirm(`Delete boundary for Zone ${zoneId}? This cannot be undone.`)) return;
+    // Check for observations and tasks in this zone
+    let zoneObs   = [];
+    let zoneTasks = [];
+    try { zoneObs = (await App.getAllObservations()).filter(o => o.zone === zoneId && !o.removed); } catch(e) {}
+    try { zoneTasks = window.Tasks ? Tasks.getTasksForZone(zoneId) : []; } catch(e) {}
 
-    /* Remove from localStorage */
-    try {
-      const raw = localStorage.getItem('fc_zone_boundaries');
-      if (raw) {
-        const zoneMap = JSON.parse(raw);
+    // Check if this is a custom zone (user-created, not in static zones.json)
+    const customZones = (() => { try { return JSON.parse(localStorage.getItem('fc_custom_zones') || '[]'); } catch { return []; } })();
+    const isCustom = customZones.some(z => z.id === zoneId);
+
+    // Build the confirmation modal
+    const otherZones = App.getZones().filter(z => z.id !== zoneId);
+    const hasData    = zoneObs.length > 0 || zoneTasks.length > 0;
+
+    const modal = document.createElement('div');
+    modal.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:2000;display:flex;align-items:center;justify-content:center;padding:16px';
+    modal.innerHTML = `
+      <div style="background:#fff;border-radius:14px;padding:20px 18px;max-width:340px;width:100%;box-shadow:0 8px 32px rgba(0,0,0,.3)">
+        <h3 style="margin:0 0 8px;font-size:16px">Delete Zone ${esc(zoneId)} boundary?</h3>
+        ${hasData ? `<div style="background:#fff3e0;border-radius:8px;padding:10px 12px;margin-bottom:12px;font-size:12px;color:#555">
+          <strong>⚠️ This zone has:</strong>
+          ${zoneObs.length > 0 ? `<div>• ${zoneObs.length} observation${zoneObs.length !== 1 ? 's' : ''}</div>` : ''}
+          ${zoneTasks.length > 0 ? `<div>• ${zoneTasks.length} task${zoneTasks.length !== 1 ? 's' : ''}</div>` : ''}
+          <div style="margin-top:6px">Move these records to a different zone?</div>
+          <select id="zdel-reassign" style="width:100%;margin-top:6px;font-size:12px">
+            <option value="">— Keep "Zone ${esc(zoneId)}" tag —</option>
+            ${otherZones.map(z => `<option value="${esc(z.id)}">Zone ${esc(z.id)} – ${esc(z.name)}</option>`).join('')}
+          </select>
+        </div>` : ''}
+        ${isCustom ? `<label style="display:flex;align-items:center;gap:8px;font-size:13px;margin-bottom:12px;cursor:pointer">
+          <input type="checkbox" id="zdel-remove-custom" checked>
+          Also remove Zone ${esc(zoneId)} from all lists (Zones tab, dropdowns)
+        </label>` : ''}
+        <div style="display:flex;gap:8px">
+          <button class="btn" id="zdel-confirm" style="background:#e53935;border-color:#e53935">Delete boundary</button>
+          <button class="btn btn-outline" id="zdel-cancel">Cancel</button>
+        </div>
+      </div>`;
+    document.body.appendChild(modal);
+
+    document.getElementById('zdel-cancel').addEventListener('click', () => modal.remove());
+
+    document.getElementById('zdel-confirm').addEventListener('click', async () => {
+      modal.remove();
+      const reassignTo     = hasData ? ((document.getElementById('zdel-reassign') || {}).value || '') : '';
+      const removeCustom   = isCustom && (document.getElementById('zdel-remove-custom') || {}).checked;
+
+      /* Reassign observations */
+      if (reassignTo && zoneObs.length > 0) {
+        await Promise.all(zoneObs.map(o => App.updateObservation(o.id, { zone: reassignTo }).catch(console.warn)));
+        App.toast(`${zoneObs.length} observation${zoneObs.length !== 1 ? 's' : ''} moved to Zone ${reassignTo}`);
+      }
+
+      /* Remove boundary from localStorage */
+      try {
+        const zoneMap = JSON.parse(localStorage.getItem('fc_zone_boundaries') || '{}');
         delete zoneMap[zoneId];
         localStorage.setItem('fc_zone_boundaries', JSON.stringify(zoneMap));
+      } catch(e) {}
+
+      /* Remove from backend */
+      if (window.Auth && Auth.isSignedIn()) {
+        try {
+          const BACKEND = 'https://field-companion-backend.paulwiner5.workers.dev';
+          const tok = Auth.getToken();
+          await fetch(`${BACKEND}/boundaries/zone/${encodeURIComponent(zoneId)}`, {
+            method: 'DELETE',
+            headers: tok ? { Authorization: 'Bearer ' + tok } : {},
+          });
+        } catch(e) { console.warn('Zone boundary cloud delete failed:', e); }
       }
-    } catch(e) {}
 
-    /* Delete from backend if signed in */
-    if (window.Auth && Auth.isSignedIn()) {
-      try {
-        const BACKEND = 'https://field-companion-backend.paulwiner5.workers.dev';
-        const tok = Auth.getToken();
-        await fetch(`${BACKEND}/boundaries/zone/${encodeURIComponent(zoneId)}`, {
-          method: 'DELETE',
-          headers: tok ? { Authorization: 'Bearer ' + tok } : {},
-        });
-      } catch(e) { console.warn('Zone boundary cloud delete failed:', e); }
-    }
+      /* Optionally remove custom zone from all lists */
+      if (removeCustom) {
+        const updated = customZones.filter(z => z.id !== zoneId);
+        localStorage.setItem('fc_custom_zones', JSON.stringify(updated));
+        // Also clear any zone overrides for this zone
+        try {
+          const overrides = JSON.parse(localStorage.getItem('fc_zone_overrides') || '{}');
+          delete overrides[zoneId];
+          localStorage.setItem('fc_zone_overrides', JSON.stringify(overrides));
+        } catch(e) {}
+        // Re-init zones tab to reflect removal
+        if (window.Zones && Zones.init) Zones.init();
+      }
 
-    loadBoundaries();
-    renderZonesList();
-    App.toast(`Zone ${zoneId} boundary deleted`);
+      delete _zoneBoundsMap[zoneId];
+      delete _zoneLayers[zoneId];
+      loadBoundaries();
+      renderZonesList();
+      App.toast(`Zone ${zoneId} boundary deleted`);
+    });
   }
 
   /* ── My Location control ── */

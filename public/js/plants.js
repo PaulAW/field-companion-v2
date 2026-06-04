@@ -22,8 +22,8 @@ var Plants = (() => {
       _obs = [];
     }
     render();
-    // Restore scroll after async render
-    if (screensEl && savedScroll) requestAnimationFrame(() => { screensEl.scrollTop = savedScroll; });
+    // Restore scroll after async render — setTimeout outlasts rAF to survive browser reflow
+    if (screensEl && savedScroll) setTimeout(() => { screensEl.scrollTop = savedScroll; }, 60);
   }
 
   /* ── Aggregate observations by common_name ── */
@@ -133,6 +133,16 @@ var Plants = (() => {
         if (detail) detail.style.display = _expanded.has(key) ? 'block' : 'none';
         const chevron = card.querySelector('.plants-chevron');
         if (chevron) chevron.textContent = _expanded.has(key) ? '▾' : '▸';
+      });
+    });
+
+    // Wire "Log" buttons — open that observation in the Log edit form
+    container.querySelectorAll('[data-obs-log]').forEach(btn => {
+      btn.addEventListener('click', e => {
+        e.stopPropagation();
+        const obsId = parseInt(btn.dataset.obsLog);
+        const obs   = _obs.find(o => o.id === obsId);
+        if (obs && window.Logger && Logger.editObservation) Logger.editObservation(obs);
       });
     });
   }

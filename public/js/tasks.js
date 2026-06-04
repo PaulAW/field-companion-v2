@@ -443,7 +443,7 @@ var Tasks = (() => {
       _restoreScrollOnRender = false;
       const screensEl = document.getElementById('screens');
       const saved = App.getTabScroll ? App.getTabScroll('tasks') : 0;
-      if (screensEl && saved) requestAnimationFrame(() => { screensEl.scrollTop = saved; });
+      if (screensEl && saved) setTimeout(() => { screensEl.scrollTop = saved; }, 60);
     }
 
     // Apply any pending external edit request (e.g. from Zone detail)
