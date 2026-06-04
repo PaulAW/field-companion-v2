@@ -3,39 +3,41 @@
     "id": "A",
     "name": "Highway Border",
     "acres": 0.92,
-    "elevation": "770–780 ft",
+    "elevation": "764–783 ft",
     "urgency": "low",
     "priority_action": null,
-    "description": "Strip along highway frontage. Primarily mowed turf with scattered volunteer trees.",
-    "goals": "Establish native wildflower and grass buffer. Reduce mowing frequency over time.",
+    "description": "Flat strip along highway frontage. Young red cedars, pine, and black cherry present. European turf and weeds dominate ground layer. Road edge stress limits some species.",
+    "goals": "Establish native wildflower and grass buffer. Suppress turf creep from road edge. Reduce mowing frequency over time. Cedars and black cherry are native — protect.",
     "invasives": [
       "Canada Thistle (Cirsium arvense)",
       "Brome Grass (Bromus inermis)"
     ],
     "target_natives": [
+      "Prairie Dropseed (Sporobolus heterolepis)",
       "Little Bluestem (Schizachyrium scoparium)",
+      "Wild Bergamot (Monarda fistulosa)",
+      "Lanceleaf Coreopsis (Coreopsis lanceolata)",
       "Black-eyed Susan (Rudbeckia hirta)",
-      "Purple Coneflower (Echinacea purpurea)",
-      "Wild Bergamot (Monarda fistulosa)"
+      "Purple Coneflower (Echinacea purpurea)"
     ],
-    "notes": "Check local mowing ordinances before reducing mow frequency. Highway ROW may be county-maintained — confirm property boundaries.",
+    "notes": "Check local mowing ordinances before reducing mow frequency — highway ROW may be county-maintained. Flat terrain; red cedars and black cherry are native keystone trees. Road edge stress.",
     "known_plantings_2016": [
-      "Northern Pecan (Carya illinoinensis) — native to SE Iowa; planted 2016",
+      "Northern Pecan (Carya illinoinensis) — native to SE Iowa riparian zones; planted by Abundant Biology 2016",
       "Silver Maple (Acer saccharinum)",
       "Wild Plum (Prunus americana)",
       "Sycamore (Platanus occidentalis)",
-      "Shrub Mix — Arrowwood, Elderberry, Nannyberry, Serviceberry, Hazelnut"
+      "Shrub Mix — Arrowwood Viburnum, Elderberry, Nannyberry, Serviceberry, Hazelnut"
     ]
   },
   {
     "id": "B",
     "name": "Berm Woodland",
     "acres": 1.62,
-    "elevation": "760–775 ft",
+    "elevation": "766–787 ft",
     "urgency": "high",
     "priority_action": "URGENT: Remove all white mulberry. Cut and immediately treat stumps with concentrated glyphosate. Repeat every 6 weeks through growing season.",
-    "description": "Raised berm with mixed woodland. Significant white mulberry invasion threatening native understory.",
-    "goals": "Native woodland restoration. Favor bur oak, hackberry, and native understory shrubs. Eliminate mulberry and garlic mustard.",
+    "description": "Raised berm landform with mixed woodland. Pine, oak, and black cherry present. White/hybrid mulberry invasion actively being removed. Best woodland edge opportunity on the property. NW corner contains 2020 DNR Songbird Packet planting (White Pine, Bur Oak, Chokecherry, Gray Dogwood, Serviceberry, Wild Plum).",
+    "goals": "Complete mulberry elimination. Native woodland restoration favoring bur oak, hackberry, and native understory shrubs. Protect and expand from DNR and 2016 plantings.",
     "invasives": [
       "White Mulberry (Morus alba)",
       "Bush Honeysuckle (Lonicera maackii)",
@@ -43,60 +45,78 @@
     ],
     "target_natives": [
       "Bur Oak (Quercus macrocarpa)",
-      "Hackberry (Celtis occidentalis)",
-      "Wild Plum (Prunus americana)",
+      "Chokecherry (Prunus virginiana)",
+      "Silky Dogwood (Cornus amomum)",
       "Gray Dogwood (Cornus racemosa)",
-      "Native Elderberry (Sambucus canadensis)"
+      "Native Elderberry (Sambucus canadensis)",
+      "Hackberry (Celtis occidentalis)",
+      "Wild Plum (Prunus americana)"
     ],
-    "notes": "Mulberry spreads aggressively via bird droppings — remove all fruiting trees first. Scout for garlic mustard in spring and treat before seed set. It spreads by the thousands once established.",
+    "notes": "Mulberry spreads aggressively via bird droppings — remove all fruiting trees first. Scout garlic mustard in spring before seed set. NW corner has 2020 DNR Songbird Packet plantings — protect those seedlings.",
     "known_plantings_2016": [
-      "Northern Pecan (Carya illinoinensis) — native to SE Iowa; planted 2016",
+      "Northern Pecan (Carya illinoinensis) — native to SE Iowa; planted by Abundant Biology 2016 (south berm area)",
       "Silver Maple (Acer saccharinum)",
       "Wild Plum (Prunus americana)",
       "Sycamore (Platanus occidentalis)",
       "Black Walnut (Juglans nigra)",
-      "Oak Mix (various Quercus spp.)",
-      "Arrowwood Viburnum, Elderberry, Nannyberry, Wild Plum, Shrub Mix"
+      "Oak Mix (Pin, White, Red, Bur Oaks)",
+      "Arrowwood Viburnum, Elderberry, Nannyberry — Shrub Mix"
+    ],
+    "known_plantings_2020_nw_corner": [
+      "White Pine (Pinus strobus) — DNR Songbird Packet",
+      "Bur Oak (Quercus macrocarpa) — DNR Songbird Packet",
+      "Chokecherry (Prunus virginiana) — DNR Songbird Packet",
+      "Gray Dogwood (Cornus racemosa) — DNR Songbird Packet",
+      "Serviceberry (Amelanchier spp.) — DNR Songbird Packet",
+      "Wild Plum (Prunus americana) — DNR Songbird Packet"
     ]
   },
   {
     "id": "C",
     "name": "Plateau / Fire Pit",
     "acres": 0.55,
-    "elevation": "775–785 ft",
+    "elevation": "774–783 ft",
     "urgency": "low",
     "priority_action": null,
-    "description": "Higher plateau area with fire pit. Mixed use area with some native plantings.",
-    "goals": "Maintain as relaxed native prairie/savanna mix. Low maintenance once established.",
+    "description": "First-level plateau area with fire pit. Maple, willows, and birch present. European turf throughout. Good candidate for no-mow native conversion. Consider prairie edge on sunny exposures, woodland floor natives in shade.",
+    "goals": "Convert turf to native understory. Prairie edge on sunny sides, woodland floor natives in shade. Low maintenance once established.",
     "invasives": [
       "Brome Grass (Bromus inermis)"
     ],
     "target_natives": [
+      "Wild Ginger (Asarum canadense)",
+      "Woodland Sedge (Carex spp.)",
+      "Virginia Bluebells (Mertensia virginica)",
+      "Wild Columbine (Aquilegia canadensis)",
       "Side-oats Grama (Bouteloua curtipendula)",
       "Wild Bergamot (Monarda fistulosa)",
       "Compass Plant (Silphium laciniatum)",
       "Prairie Dropseed (Sporobolus heterolepis)"
     ],
-    "notes": "Keep fire pit area clear 10-foot radius. Native grasses thrive here; prescribed burns would benefit this zone long-term. Good location for fall seeding."
+    "notes": "Keep fire pit area clear 10-foot radius. Good location for fall seeding. Fire-adapted prairie edge on sunny exposures; woodland floor species in shade under existing maples."
   },
   {
     "id": "D",
     "name": "Home / Drive / Pool",
     "acres": 2.93,
-    "elevation": "768–778 ft",
-    "urgency": "low",
-    "priority_action": null,
-    "description": "Maintained home grounds including driveway, pool area, and ornamental plantings. Managed turf lawn.",
-    "goals": "Maintain existing ornamentals. Monitor blue spruces for disease. Gradually replace turf with native groundcovers where practical.",
+    "elevation": "759–781 ft",
+    "urgency": "medium",
+    "priority_action": "Remove Bradford pear entirely — it is invasive and spreads aggressively from seed. Replace with native serviceberry or redbud.",
+    "description": "Contains 1681 and 1679 houses, garage, drive, pool, car park, and G-Island. Willow, arborvitae, Bradford pear, pine present. Yews as shrubs. European turf throughout plus perennial plot and fenced vegetable garden inside fence.",
+    "goals": "Remove Bradford pear. Expand native perennial beds. Gradually replace turf with native groundcovers. Maintain vegetable garden inside fence.",
     "invasives": [
+      "Bradford Pear (Pyrus calleryana) — MUST REMOVE; highly invasive, spreads aggressively from seed",
       "Creeping Charlie (Glechoma hederacea)"
     ],
     "target_natives": [
+      "Serviceberry (Amelanchier spp.) — replace Bradford pear",
+      "Redbud (Cercis canadensis) — replace Bradford pear",
       "Wild Ginger (Asarum canadense)",
       "Wild Columbine (Aquilegia canadensis)",
-      "Prairie Smoke (Geum triflorum)"
+      "Purple Coneflower (Echinacea purpurea)",
+      "Black-eyed Susan (Rudbeckia hirta)"
     ],
-    "notes": "Blue spruce trees present — monitor for Rhizosphaera needle cast. Treat with Daconil when new growth reaches 1–2 inches in spring. Second application may be needed if pressure is high."
+    "notes": "Blue spruce trees present — monitor for Rhizosphaera needle cast; treat with Daconil when new growth reaches 1–2 inches. Norway/Scotch pines — treat annually for Zimmerman pine moth (Bayer Systemic at base). Bradford pear must be fully removed before it spreads further via birds. Fenced vegetable garden separate from restoration goals."
   },
   {
     "id": "E",
@@ -105,10 +125,10 @@
     "elevation": "747–766 ft",
     "urgency": "high",
     "priority_action": "#1 PRIORITY: Cut ALL bush honeysuckle and paint stumps with concentrated glyphosate every 6 weeks through the growing season. It regrows vigorously — do not skip cycles.",
-    "description": "Creek corridor running west to east. Wet-tolerant species zone. Young bur oak present in NW corner — protect it. Bush honeysuckle is the #1 threat.",
-    "goals": "Eliminate bush honeysuckle entirely. Establish wet-tolerant native riparian corridor. Protect and nurture the young bur oak in NW corner.",
+    "description": "Creek corridor sloping west to east. Red cedar, river birch, willow, and young bur oak in NW corner. Bush honeysuckle is the #1 threat. Wild sunflowers present. Wet-tolerant species zone with creek hydrology.",
+    "goals": "Eliminate bush honeysuckle entirely. Establish wet-tolerant native riparian corridor. Protect and nurture the young bur oak in NW corner — flag it so it isn't accidentally mowed.",
     "invasives": [
-      "Bush Honeysuckle (Lonicera maackii)"
+      "Bush Honeysuckle (Lonicera maackii) — #1 PRIORITY"
     ],
     "target_natives": [
       "Silky Dogwood (Cornus amomum)",
@@ -118,58 +138,69 @@
       "Native Willows (Salix spp.)",
       "Blue Wild Indigo (Baptisia australis)"
     ],
-    "notes": "Young bur oak in NW corner — FLAG IT and protect from deer browse. Creek slope runs west to east. Honeysuckle leafs out 2–3 weeks before native plants — easiest to spot and treat in early spring before natives green up."
+    "notes": "Young bur oak in NW corner — FLAG IT and protect from deer browse. Honeysuckle leafs out 2–3 weeks BEFORE native plants in spring — easiest to spot and treat then. Creek hydrology supports wet-tolerant species. Re-treat honeysuckle regrowth every 6 weeks all season."
   },
   {
     "id": "F",
     "name": "Island",
     "acres": 0.12,
-    "elevation": "760–765 ft",
+    "elevation": "766–773 ft",
     "urgency": "low",
     "priority_action": null,
-    "description": "Small isolated planting area. Contains established lilacs. Low maintenance zone.",
-    "goals": "Maintain lilacs. Add shade-tolerant native companions that won't compete aggressively.",
+    "description": "Small ornamental island. Arborvitaes, choke cherry, blue spruce. Lilacs, hydrangeas, hosta. Purple coneflower, possibly yarrow. Choke cherry is a native keystone species.",
+    "goals": "Maintain existing plantings. Prune lilacs heavily every year or they spread out of control. Add native wildflowers to understory. Monitor blue spruce for disease.",
     "invasives": [],
     "target_natives": [
+      "Wild Geranium (Geranium maculatum)",
+      "Native Columbine (Aquilegia canadensis)",
       "Wild Blue Phlox (Phlox divaricata)",
+      "Purple Coneflower (Echinacea purpurea)",
       "Solomon's Seal (Polygonatum biflorum)"
     ],
-    "notes": "Prune lilacs in spring immediately after bloom — OK through early summer. NEVER prune in September or fall — this removes next year's flower buds. Lilacs bloom on old wood."
+    "notes": "Prune lilacs heavily — spring immediately after bloom through early summer; NEVER in September (breaks dormancy). Blue spruce treated historically for Rhizosphaera needle cast with Daconil — repeat when new growth is 1–2 inches. Choke cherry is native keystone — protect. Hydrangeas and hosta are non-native ornamentals — acceptable here."
   },
   {
     "id": "G",
-    "name": "NE Seed Plot",
+    "name": "NE Native Seed Plot",
     "acres": 0.15,
-    "elevation": "772–778 ft",
+    "elevation": "765–776 ft",
     "urgency": "high",
-    "priority_action": "URGENT: Mow/clear edges to reduce turf and brome grass competition. Hand-weed around seedlings. Do not let weeds shade out the establishing prairie plants.",
-    "description": "Northeast native seed establishment plot. Seedlings competing with turf and brome grass infiltrating from edges.",
-    "goals": "Establish native seed plot successfully. Suppress turf competition. Protect emerging native seedlings through their critical first 1–2 years.",
+    "priority_action": "Mow/clear edges to 4–6 inches to suppress turf and brome grass. Hand-weed around seedlings. Kill surrounding turf with glyphosate before fall re-seed if needed.",
+    "description": "Dedicated prairie establishment plot in NE corner. Hoksey 20-20 prairie mix seeded 2020/2021 — poor results due to turf competition and prep issues. Earth Science native mix seeded May 2024. Establishment is a multi-year project requiring persistent turf suppression.",
+    "goals": "Establish self-sustaining native prairie. Suppress turf competition — this is the main barrier. Re-seed with Hoksey native mix fall 2025 after full turf kill. Seeds need cold stratification over winter.",
     "invasives": [
       "Brome Grass (Bromus inermis)",
-      "Turf Grass (encroaching into native planting)"
+      "Turf Grass (encroaching from edges)"
     ],
     "target_natives": [
-      "Prairie seed mix as planted — document what germinates"
+      "Big Bluestem (Andropogon gerardii)",
+      "Indian Grass (Sorghastrum nutans)",
+      "Prairie Dropseed (Sporobolus heterolepis)",
+      "Little Bluestem (Schizachyrium scoparium)",
+      "Wild Bergamot (Monarda fistulosa)",
+      "Black-eyed Susan (Rudbeckia hirta)",
+      "Purple Coneflower (Echinacea purpurea)"
     ],
-    "notes": "Native prairie seedlings may look like weeds in years 1–2 — most energy goes to root development above-ground growth is minimal. Be very cautious before pulling anything. Mowing to 4–6 inches in summer suppresses weeds without harming prairie plants. Do not use herbicide near seedlings."
+    "notes": "Native prairie seedlings look like weeds in years 1–2 — most energy goes to roots. Be very cautious before pulling anything. Mowing to 4–6 inches in summer suppresses weeds without harming prairie plants. Do NOT use herbicide near seedlings. Fall seeding is ideal — cold stratification over winter improves germination."
   },
   {
     "id": "H",
     "name": "Perennial Plot",
     "acres": 0.01,
-    "elevation": "770–772 ft",
+    "elevation": "775 ft",
     "urgency": "low",
     "priority_action": null,
-    "description": "Small dedicated perennial bed. Managed ornamental and native mix.",
-    "goals": "Maintain as tended perennial bed. Favor native perennials where possible. Good place to trial species before planting larger areas.",
+    "description": "Very small perennial test bed. Currently planted with Burpee Perennial Wildflower Mix — mostly non-native species (baby's breath, blue flax, lupine, calendula, Siberian wallflower) with some natives mixed in (lanceleaf coreopsis, coneflower, Indian blanket, black-eyed Susan, Mexican hat).",
+    "goals": "Allow natives to self-seed and expand. Let non-natives fade out naturally over time. Good test bed for trialing species before planting larger areas.",
     "invasives": [],
     "target_natives": [
       "Purple Coneflower (Echinacea purpurea)",
       "Black-eyed Susan (Rudbeckia hirta)",
+      "Lanceleaf Coreopsis (Coreopsis lanceolata)",
+      "Wild Bergamot (Monarda fistulosa)",
       "Blazing Star (Liatris spicata)",
-      "Native Bee Balm (Monarda spp.)"
+      "Mexican Hat (Ratibida columnifera)"
     ],
-    "notes": "Small enough to maintain entirely by hand. Divide overcrowded perennials in spring or fall. Deadhead through summer to extend bloom; leave seedheads standing in fall for birds."
+    "notes": "Small enough to maintain entirely by hand. Divide overcrowded perennials in spring or fall. Deadhead through summer to extend bloom; leave seedheads in fall for birds. Supplement with native seed from Hoksey or Prairie Moon Nursery to shift the balance toward Iowa natives."
   }
 ]

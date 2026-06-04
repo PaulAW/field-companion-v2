@@ -15,14 +15,14 @@
           "type": "Google Sheets",
           "folder": "Landscaping folder",
           "icon": "📊",
-          "url": "https://docs.google.com/spreadsheets/d/1qSOxvK7_zH9o_ONUJzIu0KOGg8mBpQZMCe0x-jWs9kM/edit?usp=drive_link"
+          "url": "https://docs.google.com/spreadsheets/d/1qSOxvK7_zH9o_ONUJzIu0KOGg8mBpQZMCe0x-jWs9kM/edit?usp=sharing"
         },
         {
           "name": "Property Master Reference",
           "type": "Google Docs",
           "folder": "Landscaping folder",
           "icon": "📄",
-          "url": "https://docs.google.com/document/d/1A6nB9CSnvDiHupsAD_89zzFzZ3Y7W0fYu5Cj1ygKgLc/edit?usp=drive_link"
+          "url": "https://docs.google.com/document/d/1A6nB9CSnvDiHupsAD_89zzFzZ3Y7W0fYu5Cj1ygKgLc/edit?tab=t.0"
         },
         {
           "name": "Seed Inventory – Vegetables",
@@ -34,23 +34,35 @@
       ]
     },
     {
-      "title": "2016–2017 Planting records (Abundant Biology)",
+      "title": "Planting records",
       "links": [
         {
-          "name": "Invoice #2048 — Tree Installation (Dec 2016)",
+          "name": "Abundant Biology Invoice #2048 (Dec 2016)",
           "type": "PDF",
           "folder": "Landscaping folder",
           "icon": "📄",
-          "url": "https://drive.google.com/file/d/ADD_SHARE_LINK_FOR_INVOICE_PDF/view?usp=sharing",
-          "note": "Replace URL with Google Drive share link for 'Paul Winer Planting 1 - 201 Invoice - Abundand Biology.pdf'"
+          "url": "https://drive.google.com/file/d/0B811j3oP4umPdURIRlB5ZWVIc3M/view?usp=sharing"
         },
         {
-          "name": "Tree Plantings Map 2016–2017",
+          "name": "Tree Plantings Map 2016–2017 (Abundant Biology)",
           "type": "PDF",
           "folder": "Landscaping folder",
           "icon": "🗺️",
-          "url": "https://drive.google.com/file/d/ADD_SHARE_LINK_FOR_PLANTING_MAP_PDF/view?usp=sharing",
-          "note": "Replace URL with Google Drive share link for 'Tree plantings 2016 2017 by Abundant Biology.pdf'"
+          "url": "https://drive.google.com/file/d/0B811j3oP4umPblB0a01aelRncEk/view?usp=sharing"
+        },
+        {
+          "name": "DNR Songbird Packet — Zone B NW corner (2020)",
+          "type": "PDF",
+          "folder": "Landscaping folder",
+          "icon": "🐦",
+          "url": "https://drive.google.com/file/d/1KzKvPZVdHCT6ShdLEup-SuBvC972qYdr/view?usp=drive_link"
+        },
+        {
+          "name": "2012 Arborist Notes (Jerry Stevenson)",
+          "type": "Google Docs",
+          "folder": "Landscaping folder",
+          "icon": "🌳",
+          "url": "https://docs.google.com/document/d/1bbOAlRLeSWSaOCdTpxQ798QiFksNsE4z/edit?usp=drive_link"
         }
       ]
     },
