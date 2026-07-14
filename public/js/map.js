@@ -29,6 +29,20 @@ var PropertyMap = (() => {
   let _labelLayer     = null;
   let _zoneBoundsMap  = {};   // zoneId → L.LatLngBounds, for flyToZone()
   let _zoneLayers     = {};   // zoneId → L.GeoJSON layer, for boundary flash
+  let _zoneGeoRaw     = {};   // zoneId → raw GeoJSON, for point-in-polygon + centroid lookups
+
+  /* Live location tracking */
+  let _tracking           = false;
+  let _watchId            = null;
+  let _liveMarker         = null;
+  let _liveAccuracyCircle = null;
+  let _liveLatLng         = null;   // {lat,lng} of last known live fix
+  let _liveFirstFix       = true;
+  let _nearbyPanelEl      = null;
+  let _locateBtn          = null;
+
+  /* Find-a-plant search */
+  let _highlightLayer = null;
 
   const $ = id => document.getElementById(id);
 
@@ -117,6 +131,7 @@ var PropertyMap = (() => {
     _zoneLayer  = L.layerGroup().addTo(_map);
     _propLayer  = L.layerGroup().addTo(_map);
     _labelLayer = L.layerGroup().addTo(_map);
+    _highlightLayer = L.layerGroup().addTo(_map);
 
     /* Boundary drawing via Leaflet.draw */
     setupDrawControl();
@@ -129,6 +144,9 @@ var PropertyMap = (() => {
 
     /* Zone management button (A-7) */
     addManageZonesControl();
+
+    /* Find-a-plant search button */
+    addFindPlantControl();
 
     /* Zoom-level label control (A-5) */
     _map.on('zoomend', applyLabelVisibility);
@@ -391,7 +409,9 @@ var PropertyMap = (() => {
         const zoneMap = JSON.parse(raw);
         const zones   = App.getZones();
         if (_labelLayer) _labelLayer.clearLayers();
+        _zoneGeoRaw = {};
         Object.entries(zoneMap).forEach(([zoneId, geojson]) => {
+          _zoneGeoRaw[zoneId] = geojson;
           const zone       = zones.find(z => z.id === zoneId);
           const color      = zone && zone.urgency === 'high' ? '#e53935' : '#43a047';
           const shortLabel = zone ? zone.id : zoneId;
@@ -784,30 +804,143 @@ var PropertyMap = (() => {
     });
   }
 
-  /* ── My Location control ── */
+  /* ── My Location control — toggles continuous live tracking ── */
   function addLocationControl() {
     const LocationBtn = L.Control.extend({
       options: { position: 'topleft' },
       onAdd() {
         const btn = L.DomUtil.create('button', 'map-locate-btn leaflet-bar');
         btn.innerHTML = '📍';
-        btn.title = 'My location';
+        btn.title = 'Track my location';
         btn.type  = 'button';
+        _locateBtn = btn;
         L.DomEvent.on(btn, 'click', e => {
           L.DomEvent.stopPropagation(e);
-          _map.locate({ setView: true, maxZoom: 18, enableHighAccuracy: true });
+          if (_tracking) stopTracking(); else startTracking();
         });
         return btn;
       },
     });
     new LocationBtn().addTo(_map);
+  }
 
-    _map.on('locationfound', e => {
-      L.circleMarker(e.latlng, {
-        radius: 9, fillColor: '#1976d2', color: '#fff', weight: 2.5, fillOpacity: 0.95,
-      }).addTo(_map).bindPopup('📍 You are here').openPopup();
+  function startTracking() {
+    if (!navigator.geolocation) { App.toast('Location unavailable on this device'); return; }
+    _tracking = true;
+    _liveFirstFix = true;
+    if (_locateBtn) { _locateBtn.classList.add('tracking'); _locateBtn.title = 'Stop tracking my location'; }
+    _watchId = navigator.geolocation.watchPosition(onLocationUpdate, onLocationError, {
+      enableHighAccuracy: true, maximumAge: 5000, timeout: 15000,
     });
-    _map.on('locationerror', () => App.toast('Location unavailable'));
+  }
+
+  function stopTracking() {
+    _tracking = false;
+    if (_watchId !== null) { navigator.geolocation.clearWatch(_watchId); _watchId = null; }
+    if (_locateBtn) { _locateBtn.classList.remove('tracking'); _locateBtn.title = 'Track my location'; }
+    if (_liveMarker)          { _map.removeLayer(_liveMarker); _liveMarker = null; }
+    if (_liveAccuracyCircle)  { _map.removeLayer(_liveAccuracyCircle); _liveAccuracyCircle = null; }
+    hideNearbyPanel();
+    _liveLatLng = null;
+  }
+
+  function onLocationUpdate(pos) {
+    const lat = pos.coords.latitude, lng = pos.coords.longitude, acc = pos.coords.accuracy || 15;
+    _liveLatLng = { lat, lng };
+
+    if (!_liveMarker) {
+      _liveMarker = L.marker([lat, lng], {
+        icon: L.divIcon({
+          html: '<div class="map-live-dot"><div class="map-live-dot-pulse"></div></div>',
+          className: '', iconSize: [16, 16], iconAnchor: [8, 8],
+        }),
+        interactive: false, zIndexOffset: 1000,
+      }).addTo(_map);
+    } else {
+      _liveMarker.setLatLng([lat, lng]);
+    }
+
+    if (!_liveAccuracyCircle) {
+      _liveAccuracyCircle = L.circle([lat, lng], {
+        radius: acc, color: '#1976d2', weight: 1, fillColor: '#1976d2', fillOpacity: 0.08, interactive: false,
+      }).addTo(_map);
+    } else {
+      _liveAccuracyCircle.setLatLng([lat, lng]).setRadius(acc);
+    }
+
+    if (_liveFirstFix) {
+      _liveFirstFix = false;
+      _map.setView([lat, lng], Math.max(_map.getZoom(), 18));
+    }
+
+    updateNearbyPanel(lat, lng);
+  }
+
+  function onLocationError() {
+    App.toast('Location unavailable — check permissions');
+    stopTracking();
+  }
+
+  /* ── Nearby-info panel: what's logged / due near the live location ── */
+  function ensureNearbyPanel() {
+    if (_nearbyPanelEl) return _nearbyPanelEl;
+    const mapScreen = document.getElementById('screen-map');
+    if (!mapScreen) return null;
+    const el = document.createElement('div');
+    el.id = 'map-nearby-panel';
+    el.className = 'map-nearby-panel';
+    mapScreen.appendChild(el);
+    _nearbyPanelEl = el;
+    return el;
+  }
+
+  function hideNearbyPanel() {
+    if (_nearbyPanelEl) _nearbyPanelEl.style.display = 'none';
+  }
+
+  function updateNearbyPanel(lat, lng) {
+    const panel = ensureNearbyPanel();
+    if (!panel) return;
+
+    // Which zone (if any) contains the live point
+    let currentZone = null;
+    for (const [zoneId, geojson] of Object.entries(_zoneGeoRaw)) {
+      if (pointInPolygon(lat, lng, geojson)) { currentZone = App.getZone(zoneId) || { id: zoneId, name: zoneId }; break; }
+    }
+
+    // Nearby active observations with GPS
+    const nearby = _allObs
+      .filter(o => !o.removed)
+      .map(o => {
+        const olat = parseFloat(o.lat || o.latitude), olng = parseFloat(o.lng || o.longitude);
+        if (!olat || !olng || isNaN(olat) || isNaN(olng)) return null;
+        return { obs: o, dist: distanceMeters(lat, lng, olat, olng) };
+      })
+      .filter(x => x && x.dist <= 75)
+      .sort((a, b) => a.dist - b.dist)
+      .slice(0, 4);
+
+    const openTasks = currentZone && window.Tasks
+      ? Tasks.getTasksForZone(currentZone.id).filter(t => !t.completed)
+      : [];
+
+    const zoneHTML = currentZone
+      ? `<strong>Zone ${esc(currentZone.id)} – ${esc(currentZone.name)}</strong>`
+      : `<strong>Not inside a drawn zone</strong>`;
+
+    const nearbyHTML = nearby.length
+      ? nearby.map(x => `<div class="map-nearby-row">🌿 ${esc(x.obs.common_name)} <span class="map-nearby-dist">${Math.round(x.dist)}m</span></div>`).join('')
+      : `<div class="map-nearby-row map-nearby-empty">No logged plants within 75m</div>`;
+
+    const tasksHTML = currentZone
+      ? `<div class="map-nearby-row map-nearby-tasks">${openTasks.length ? `📋 ${openTasks.length} open task${openTasks.length !== 1 ? 's' : ''} in this zone` : '📋 No open tasks in this zone'}</div>`
+      : '';
+
+    panel.innerHTML = `${zoneHTML}${nearbyHTML}${tasksHTML}`;
+    panel.style.display = 'block';
+    if (currentZone && window.Tasks) {
+      panel.querySelector('.map-nearby-tasks')?.addEventListener('click', () => App.switchTab('tasks'));
+    }
   }
 
   /* A-6: label toggle control */
@@ -831,6 +964,139 @@ var PropertyMap = (() => {
       },
     });
     new LabelToggle().addTo(_map);
+  }
+
+  /* ── Find-a-plant search control ── */
+  function addFindPlantControl() {
+    const FindBtn = L.Control.extend({
+      options: { position: 'topright' },
+      onAdd() {
+        const btn = L.DomUtil.create('button', 'leaflet-bar map-find-plant-btn');
+        btn.innerHTML = '🔍';
+        btn.title = 'Find a plant by name';
+        btn.type  = 'button';
+        btn.style.cssText = 'background:white;border:none;cursor:pointer;padding:5px 8px;font-size:15px;display:block;line-height:1;';
+        L.DomEvent.on(btn, 'click', e => {
+          L.DomEvent.stopPropagation(e);
+          openFindPlantModal();
+        });
+        return btn;
+      },
+    });
+    new FindBtn().addTo(_map);
+  }
+
+  function openFindPlantModal() {
+    const modal = document.createElement('div');
+    modal.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:2000;display:flex;align-items:center;justify-content:center;padding:16px';
+    modal.innerHTML = `
+      <div style="background:#fff;border-radius:14px;padding:20px 18px;max-width:340px;width:100%;box-shadow:0 8px 32px rgba(0,0,0,.3)">
+        <h3 style="margin:0 0 10px;font-size:16px">Find a plant</h3>
+        <input type="text" id="fp-query" placeholder="e.g. elderberry" style="width:100%;padding:8px 10px;font-size:14px;border:1px solid var(--border);border-radius:8px">
+        <div id="fp-results" style="margin-top:12px;max-height:280px;overflow-y:auto"></div>
+        <button class="btn btn-outline" id="fp-close" style="width:100%;margin-top:14px">Close</button>
+      </div>`;
+    document.body.appendChild(modal);
+
+    const input   = document.getElementById('fp-query');
+    const results = document.getElementById('fp-results');
+    input.focus();
+
+    const runSearch = () => {
+      const q = input.value.trim();
+      results.innerHTML = q.length < 2 ? '' : findPlantResultsHTML(q);
+      results.querySelectorAll('[data-fp-obs]').forEach(el => {
+        el.addEventListener('click', () => { flyToObs(parseInt(el.dataset.fpObs)); modal.remove(); });
+      });
+      results.querySelectorAll('[data-fp-zone]').forEach(el => {
+        el.addEventListener('click', () => { flyToZone(el.dataset.fpZone); modal.remove(); });
+      });
+    };
+    input.addEventListener('input', runSearch);
+    input.addEventListener('keydown', e => { if (e.key === 'Enter') runSearch(); });
+
+    document.getElementById('fp-close').addEventListener('click', () => modal.remove());
+    modal.addEventListener('click', e => { if (e.target === modal) modal.remove(); });
+  }
+
+  function findPlantResultsHTML(q) {
+    const ql = q.toLowerCase();
+
+    // 1. Logged observations matching name
+    const matches = _allObs.filter(o => !o.removed &&
+      ((o.common_name || '').toLowerCase().includes(ql) || (o.latin_name || '').toLowerCase().includes(ql)));
+
+    if (matches.length) {
+      highlightObs(matches);
+      return matches.map(o => {
+        let distHTML = '';
+        if (_liveLatLng) {
+          const lat = parseFloat(o.lat || o.latitude), lng = parseFloat(o.lng || o.longitude);
+          if (lat && lng && !isNaN(lat) && !isNaN(lng)) {
+            const d = distanceMeters(_liveLatLng.lat, _liveLatLng.lng, lat, lng);
+            distHTML = ` <span style="color:var(--muted)">· ${Math.round(d)}m ${bearingCompass(_liveLatLng.lat, _liveLatLng.lng, lat, lng)}</span>`;
+          }
+        }
+        return `<div data-fp-obs="${o.id}" style="padding:8px 4px;border-bottom:1px solid var(--border);cursor:pointer;font-size:13px">
+          🌿 <strong>${esc(o.common_name)}</strong> — Zone ${esc(o.zone)}${distHTML}
+        </div>`;
+      }).join('');
+    }
+
+    // 2. No logged pins — fall back to zones whose text mentions this species
+    clearHighlight();
+    const zoneMatches = App.getZones().filter(z => {
+      const haystack = [z.name, z.description, z.goals, ...(z.target_natives || []),
+        ...(z.known_plantings_2016 || []), ...(z.known_plantings_2020_nw_corner || [])]
+        .join(' ').toLowerCase();
+      return haystack.includes(ql);
+    });
+
+    if (zoneMatches.length) {
+      return zoneMatches.map(z => {
+        let distHTML = '';
+        if (_liveLatLng && _zoneGeoRaw[z.id]) {
+          if (pointInPolygon(_liveLatLng.lat, _liveLatLng.lng, _zoneGeoRaw[z.id])) {
+            distHTML = ` <span style="color:var(--green)">· you are here</span>`;
+          } else {
+            const c = polygonCentroid(_zoneGeoRaw[z.id]);
+            if (c) {
+              const d = distanceMeters(_liveLatLng.lat, _liveLatLng.lng, c[0], c[1]);
+              distHTML = ` <span style="color:var(--muted)">· ~${Math.round(d)}m ${bearingCompass(_liveLatLng.lat, _liveLatLng.lng, c[0], c[1])}</span>`;
+            }
+          }
+        }
+        const boundaryNote = _zoneGeoRaw[z.id] ? '' : ' <span style="color:var(--muted)">(no boundary drawn yet)</span>';
+        return `<div data-fp-zone="${esc(z.id)}" style="padding:8px 4px;border-bottom:1px solid var(--border);cursor:pointer;font-size:13px">
+          No individual plants logged yet. Known planting area:<br>
+          📍 <strong>Zone ${esc(z.id)} – ${esc(z.name)}</strong>${boundaryNote}${distHTML}
+        </div>`;
+      }).join('');
+    }
+
+    return `<div style="padding:8px 4px;font-size:13px;color:var(--muted)">No matches in logged plants or zone notes. Try a different name, or log this plant via Plant ID once you spot it.</div>`;
+  }
+
+  function highlightObs(matches) {
+    clearHighlight();
+    const pts = [];
+    matches.forEach(o => {
+      const lat = parseFloat(o.lat || o.latitude), lng = parseFloat(o.lng || o.longitude);
+      if (!lat || !lng || isNaN(lat) || isNaN(lng)) return;
+      pts.push([lat, lng]);
+      L.circleMarker([lat, lng], {
+        radius: 14, color: '#ffb300', weight: 3, fillColor: '#ffb300', fillOpacity: 0.25,
+        className: 'map-highlight-pin',
+      }).addTo(_highlightLayer);
+    });
+    if (pts.length) {
+      if (pts.length === 1) _map.setView(pts[0], Math.max(_map.getZoom(), 19));
+      else _map.fitBounds(L.latLngBounds(pts), { padding: [50, 50], maxZoom: 19 });
+    }
+  }
+
+  function clearHighlight() {
+    if (_highlightLayer) _highlightLayer.clearLayers();
   }
 
   function applyLabelVisibility() {
@@ -890,6 +1156,44 @@ var PropertyMap = (() => {
 
   function esc(s) {
     return String(s || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+  }
+
+  /* ── Geo helpers ── */
+  function distanceMeters(lat1, lng1, lat2, lng2) {
+    const R = 6371000;
+    const toRad = d => d * Math.PI / 180;
+    const dLat = toRad(lat2 - lat1), dLng = toRad(lng2 - lng1);
+    const a = Math.sin(dLat / 2) ** 2 + Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) * Math.sin(dLng / 2) ** 2;
+    return 2 * R * Math.asin(Math.sqrt(a));
+  }
+
+  function bearingCompass(lat1, lng1, lat2, lng2) {
+    const toRad = d => d * Math.PI / 180;
+    const y = Math.sin(toRad(lng2 - lng1)) * Math.cos(toRad(lat2));
+    const x = Math.cos(toRad(lat1)) * Math.sin(toRad(lat2)) - Math.sin(toRad(lat1)) * Math.cos(toRad(lat2)) * Math.cos(toRad(lng2 - lng1));
+    const deg = (Math.atan2(y, x) * 180 / Math.PI + 360) % 360;
+    const dirs = ['N', 'NE', 'E', 'SE', 'S', 'SW', 'W', 'NW'];
+    return dirs[Math.round(deg / 45) % 8];
+  }
+
+  /* Ray-casting point-in-polygon (outer ring only) against a boundary GeoJSON */
+  function pointInPolygon(lat, lng, geojson) {
+    const g = geojson.geometry || geojson;
+    let rings;
+    if (g.type === 'Polygon') rings = [g.coordinates[0]];
+    else if (g.type === 'MultiPolygon') rings = g.coordinates.map(p => p[0]);
+    else if (g.type === 'Feature') return pointInPolygon(lat, lng, g.geometry);
+    else if (g.type === 'FeatureCollection') return g.features.some(f => pointInPolygon(lat, lng, f.geometry));
+    else return false;
+    return rings.some(ring => {
+      let inside = false;
+      for (let i = 0, j = ring.length - 1; i < ring.length; j = i++) {
+        const [xi, yi] = ring[i], [xj, yj] = ring[j];
+        const intersect = ((yi > lat) !== (yj > lat)) && (lng < (xj - xi) * (lat - yi) / (yj - yi) + xi);
+        if (intersect) inside = !inside;
+      }
+      return inside;
+    });
   }
 
   function refreshIfVisible() {
