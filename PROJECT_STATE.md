@@ -5,7 +5,7 @@ This file is the single source of truth for design/planning sessions in Claude C
 it current as work lands — update it whenever a sprint of work ships or the
 architecture changes.
 
-Last updated: 2026-08-07.
+Last updated: 2026-08-08.
 
 ## Repos
 
@@ -27,7 +27,7 @@ Current branch on both: `main`. Frontend `main` is currently even with `v2/main`
 
 ## D1 database (`field-companion-db`)
 
-Schema lives in `field-companion-worker/schema.sql`. As of 2026-08-07 (schema version includes the MCP addition, not yet applied to the remote database — see "Pending deploy steps" below):
+Schema lives in `field-companion-worker/schema.sql`. As of 2026-08-08, the MCP schema addition (zones, treatments, planting_orders/planting_order_items, oauth_clients/oauth_codes) has been applied to the remote database and zones seeded from `zones.json`.
 
 | Table | Purpose | Notes |
 |---|---|---|
@@ -49,11 +49,16 @@ Added 2026-08-07. Exposes 11 tools at `POST https://field-companion-backend.paul
 
 Auth: OAuth 2.1 with dynamic client registration + PKCE, reusing the existing Google Sign-In + `ALLOWED_EMAIL` gate. Discovery at `/.well-known/oauth-authorization-server`. See `field-companion-worker/src/mcp.js`.
 
-**Pending deploy steps (not yet run against production — needs explicit go-ahead):**
-1. `wrangler d1 execute field-companion-db --remote --file=schema.sql` (additive — creates new tables, no data loss)
-2. `wrangler d1 execute field-companion-db --remote --file=seed-zones.sql` (backfills the 8 zones)
-3. `wrangler deploy` from `field-companion-worker/`
-4. In Claude.ai: Settings → Connectors → Add custom connector → `https://field-companion-backend.paulwiner5.workers.dev/mcp`
+**Deploy steps completed 2026-08-08:**
+1. ✅ `wrangler d1 execute field-companion-db --remote --file=schema.sql` — ran successfully (23 queries, 25 rows written)
+2. ✅ `wrangler d1 execute field-companion-db --remote --file=seed-zones.sql` — ran successfully (8 queries, 16 rows written)
+3. ✅ `wrangler deploy` from `field-companion-worker/` — live at `field-companion-backend.paulwiner5.workers.dev`
+
+**Deploy steps completed 2026-08-08 (cont'd):**
+4. ✅ Google Cloud Console — added `https://field-companion-backend.paulwiner5.workers.dev` as an Authorized JavaScript origin on the `GOOGLE_CLIENT_ID` OAuth client
+5. ✅ Claude.ai custom connector added at `https://field-companion-backend.paulwiner5.workers.dev/mcp`, signed in, and confirmed working (`get_zones` returned all 8 zones with full detail)
+
+**MCP connector is fully live as of 2026-08-08.**
 
 ## Sprint history (reference IDs mined from commit messages)
 
@@ -75,7 +80,7 @@ No standalone sprint-requirements doc survives in git history — one (`field-co
 - Frontend: `9bb78fd` — "chore: relabel build to actual deploy date (v64/2026-07-13-a)" — 2026-07-13
 - Backend: `e77d8ff` — "feat: MCP server for Claude.ai custom connector" — 2026-08-07 (local only, not yet pushed to a remote — none exists yet)
 
-## Known mismatches / gotchas (as of 2026-08-07)
+## Known mismatches / gotchas (as of 2026-08-08)
 
 - `origin` remote is 15 commits behind `v2` — **always push frontend work to `v2`**, never `origin`.
 - Backend (`field-companion-worker/`) had **zero version control** until 2026-08-07 — it now has a local git repo but no GitHub remote configured yet.
