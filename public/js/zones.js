@@ -3,6 +3,10 @@
 var Zones = (() => {
   let _showingDetail = false;
   const OVERRIDES_KEY = 'fc_zone_overrides';
+  const BACKEND = 'https://field-companion-backend.paulwiner5.workers.dev';
+
+  let _cloudMode  = false;
+  let _cloudZones = null; // { zoneId: cloudZoneRow, ... } once loaded
 
   const $ = id => document.getElementById(id);
 
@@ -11,10 +15,34 @@ var Zones = (() => {
   }
 
   function onShow() {
+    _cloudMode = !!(window.Auth && Auth.isSignedIn());
     if (!_showingDetail) renderGrid();
+    if (_cloudMode) {
+      loadCloudZones().then(() => { if (!_showingDetail) renderGrid(); });
+    }
   }
 
-  /* ── Zone overrides (user-edited fields saved to localStorage) ── */
+  /* ── Auth header helper ── */
+  function authHeader() {
+    const tok = (window.Auth && Auth.getToken) ? Auth.getToken() : null;
+    return tok ? { Authorization: 'Bearer ' + tok } : {};
+  }
+
+  /* ── Cloud mode: fetch zone data written by the app or by Claude via MCP ── */
+  async function loadCloudZones() {
+    try {
+      const res = await fetch(BACKEND + '/zones', { headers: { ...authHeader() } });
+      if (!res.ok) throw new Error('Zones fetch failed: ' + res.status);
+      const rows = await res.json();
+      _cloudZones = {};
+      rows.forEach(z => { _cloudZones[z.id] = z; });
+    } catch (e) {
+      // Offline or request failed — keep whatever cloud data (or none) we had; local overrides still apply.
+      console.warn('Zones cloud load failed, using local data:', e);
+    }
+  }
+
+  /* ── Zone overrides (local-only edits, used when signed out or cloud unreachable) ── */
   function getOverrides() {
     try { return JSON.parse(localStorage.getItem(OVERRIDES_KEY) || '{}'); } catch { return {}; }
   }
@@ -26,6 +54,10 @@ var Zones = (() => {
   }
 
   function mergeZone(z) {
+    if (_cloudMode && _cloudZones && _cloudZones[z.id]) {
+      const { id, user_id, created_at, modified_at, boundary, ...fields } = _cloudZones[z.id];
+      return { ...z, ...fields };
+    }
     const overrides = getOverrides();
     return overrides[z.id] ? { ...z, ...overrides[z.id] } : z;
   }
@@ -198,7 +230,7 @@ var Zones = (() => {
           <label class="lbl">Target natives to add <span style="font-weight:400;color:var(--muted)">(one per line)</span></label>
           <textarea id="ze-targets" rows="4" style="width:100%;resize:vertical;font-size:12px">${(zone.target_natives || []).join('\n')}</textarea>
         </div>
-        <div style="font-size:11px;color:var(--muted);margin-top:8px">Changes are saved on this device. Zone boundaries and acreage are not editable here.</div>
+        <div style="font-size:11px;color:var(--muted);margin-top:8px">${_cloudMode ? 'Changes sync to your account — visible in Claude Chat and on other signed-in devices.' : 'Changes are saved on this device only. Sign in to sync across devices and Claude Chat.'} Zone boundaries and acreage are not editable here.</div>
         <div style="display:flex;gap:8px;margin-top:16px">
           <button class="btn" id="ze-save" type="button">Save</button>
           <button class="btn btn-outline" id="ze-cancel" type="button">Cancel</button>
@@ -211,7 +243,7 @@ var Zones = (() => {
     document.getElementById('ze-cancel').addEventListener('click', close);
     modal.addEventListener('click', e => { if (e.target === modal) close(); });
 
-    document.getElementById('ze-save').addEventListener('click', () => {
+    document.getElementById('ze-save').addEventListener('click', async () => {
       const name  = (document.getElementById('ze-name') || {}).value || zone.name;
       const desc  = (document.getElementById('ze-desc') || {}).value || zone.description;
       const goals = (document.getElementById('ze-goals') || {}).value || zone.goals;
@@ -225,12 +257,34 @@ var Zones = (() => {
       const fields = { name, description: desc, goals, notes };
       if (invasives !== null) fields.invasives = invasives;
       if (target_natives !== null) fields.target_natives = target_natives;
-      saveOverride(zone.id, fields);
+
+      const saveBtn = document.getElementById('ze-save');
+      let savedToCloud = false;
+      if (_cloudMode) {
+        saveBtn.disabled = true;
+        saveBtn.textContent = 'Saving…';
+        try {
+          const res = await fetch(`${BACKEND}/zones/${encodeURIComponent(zone.id)}`, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json', ...authHeader() },
+            body: JSON.stringify(fields),
+          });
+          if (!res.ok) throw new Error('Save failed: ' + res.status);
+          if (_cloudZones) _cloudZones[zone.id] = { ...(_cloudZones[zone.id] || {}), ...fields };
+          savedToCloud = true;
+        } catch (e) {
+          console.warn('Zone cloud save failed, saving locally instead:', e);
+        }
+      }
+      if (!savedToCloud) saveOverride(zone.id, fields);
+
       close();
       // Re-render detail with updated data
       const updatedZone = mergeZone(App.getZones().find(z => z.id === zone.id) || zone);
       renderDetail(updatedZone);
-      App.toast(`Zone ${zone.id} info updated ✓`);
+      App.toast(savedToCloud
+        ? `Zone ${zone.id} updated ✓ (synced)`
+        : `Zone ${zone.id} updated ✓ (saved on this device — will not sync)`);
     });
   }
 
