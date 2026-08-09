@@ -80,6 +80,10 @@ No standalone sprint-requirements doc survives in git history — one (`field-co
 - Frontend: `9bb78fd` — "chore: relabel build to actual deploy date (v64/2026-07-13-a)" — 2026-07-13
 - Backend: `e77d8ff` — "feat: MCP server for Claude.ai custom connector" — 2026-08-07 (local only, not yet pushed to a remote — none exists yet)
 
+## Deferred features (as of 2026-08-08)
+
+- **County GIS parcel import** and **GPS-walk boundary drawing** (both spec'd in `FC V2 Specs/`) were never built — only manual polygon drawing exists. Decided not worth building now: all 8 zone boundaries are already drawn and working via manual drawing, so neither feature has a use case today. **Revisit both when work begins on the multi-user / multi-property version** — a new property or new zone at that point would need one of these again.
+
 ## Known mismatches / gotchas (as of 2026-08-08)
 
 - `origin` remote is 15 commits behind `v2` — **always push frontend work to `v2`**, never `origin`.
