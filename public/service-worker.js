@@ -1,6 +1,6 @@
 /* service-worker.js — Offline-first cache for Field Companion */
 
-const CACHE_NAME = 'field-companion-v65';
+const CACHE_NAME = 'field-companion-v66';
 
 const SHELL_FILES = [
   './',
@@ -10,6 +10,7 @@ const SHELL_FILES = [
   './js/app.js',
   './js/auth.js',
   './js/sync.js',
+  './js/exif-writer.js',
   './js/plant-id.js',
   './js/logger.js',
   './js/zones.js',

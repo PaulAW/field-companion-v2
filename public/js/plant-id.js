@@ -11,6 +11,9 @@ var PlantID = (() => {
   let _lastNotes            = '';
   let _plantNetCandidates   = null; // top-3 PlantNet results for hybrid flow
   let _selectedOrgan        = null; // organ type for primary photo
+  let _lastPrevConfidence   = null; // confidence before the most recent re-identify, for delta display
+
+  const SESSION_KEY = 'fc_pid_session';
 
   const $ = id => document.getElementById(id);
 
@@ -21,25 +24,89 @@ var PlantID = (() => {
     setupGPS();
     setupZoneSelect();
     setupIdentifyBtn();
+    setupPersistenceListeners();
     renderApiKeyWarning();
-    restorePhotoIfNeeded();
+    restoreSession();
   }
 
-  function restorePhotoIfNeeded() {
+  /* ── In-progress session persistence ──
+     Guards against losing an in-progress ID (photo, organ, GPS, supplemental
+     photos, and any completed result) when the app tab gets backgrounded and
+     reloaded by the OS/browser, or the user navigates away and back. */
+  function persistSession() {
     try {
-      const saved = sessionStorage.getItem('fc_photo_b64');
-      if (!saved) return;
-      _photoBase64 = saved;
-      _photoType   = 'image/jpeg';
+      const data = {
+        photoBase64:         _photoBase64,
+        selectedOrgan:        _selectedOrgan,
+        gpsCoords:            _gpsCoords,
+        zone:                 $('pid-zone') ? $('pid-zone').value : '',
+        notes:                $('pid-notes') ? $('pid-notes').value : '',
+        supplementalPhotos:   _supplementalPhotos,
+        supplementalOrgans:   _supplementalOrgans,
+        lastResult:           _lastResult,
+        lastZone:             _lastZone,
+        lastNotes:            _lastNotes,
+        plantNetCandidates:   _plantNetCandidates,
+        lastPrevConfidence:   _lastPrevConfidence,
+      };
+      sessionStorage.setItem(SESSION_KEY, JSON.stringify(data));
+    } catch(e) {}
+  }
+
+  function clearPersistedSession() {
+    try { sessionStorage.removeItem(SESSION_KEY); } catch(e) {}
+    try { sessionStorage.removeItem('fc_photo_b64'); } catch(e) {}  // retired key from an earlier version
+  }
+
+  function restoreSession() {
+    let data;
+    try {
+      const raw = sessionStorage.getItem(SESSION_KEY);
+      if (!raw) return;
+      data = JSON.parse(raw);
+    } catch(e) { return; }
+    if (!data) return;
+
+    _photoBase64        = data.photoBase64 || null;
+    _photoType           = 'image/jpeg';
+    _selectedOrgan        = data.selectedOrgan || null;
+    _gpsCoords            = data.gpsCoords || null;
+    _supplementalPhotos   = data.supplementalPhotos || [];
+    _supplementalOrgans   = data.supplementalOrgans || [];
+    _lastResult           = data.lastResult || null;
+    _lastZone             = data.lastZone || '';
+    _lastNotes            = data.lastNotes || '';
+    _plantNetCandidates   = data.plantNetCandidates || null;
+    _lastPrevConfidence   = data.lastPrevConfidence || null;
+
+    if (_photoBase64) {
       const preview = $('pid-photo-preview');
       if (preview) {
-        preview.src = 'data:image/jpeg;base64,' + saved;
+        preview.src = 'data:image/jpeg;base64,' + _photoBase64;
         preview.style.display = 'block';
       }
+    }
+    if (_selectedOrgan) {
       const organSection = $('pid-organ-section');
       if (organSection) organSection.style.display = 'block';
-      updateIdentifyBtn();
-    } catch(e) {}
+      document.querySelectorAll('#pid-organ-pills .organ-pill').forEach(p => {
+        p.classList.toggle('selected', p.dataset.organ === _selectedOrgan);
+      });
+    }
+    if (_gpsCoords) setGPSCoords(_gpsCoords);
+    if (data.zone && $('pid-zone'))   $('pid-zone').value  = data.zone;
+    if (data.notes && $('pid-notes')) $('pid-notes').value = data.notes;
+
+    updateIdentifyBtn();
+
+    if (_lastResult) showResult(_lastResult, _lastZone, _lastNotes);
+  }
+
+  function setupPersistenceListeners() {
+    const zone = $('pid-zone');
+    if (zone) zone.addEventListener('change', persistSession);
+    const notes = $('pid-notes');
+    if (notes) notes.addEventListener('input', persistSession);
   }
 
   function onShow() {
@@ -81,6 +148,7 @@ var PlantID = (() => {
         pill.classList.add('selected');
         _selectedOrgan = pill.dataset.organ;
         updateIdentifyBtn();
+        persistSession();
       });
     });
   }
@@ -124,12 +192,12 @@ var PlantID = (() => {
         const preview = $('pid-photo-preview');
         preview.src  = compressed;
         preview.style.display = 'block';
-        try { sessionStorage.setItem('fc_photo_b64', _photoBase64); } catch(e) {}
         // Show organ selector — reset any previous selection
         resetOrganSelect();
         const organSection = $('pid-organ-section');
         if (organSection) organSection.style.display = 'block';
         updateIdentifyBtn();
+        persistSession();
       };
       reader.readAsDataURL(file);
     }
@@ -180,6 +248,7 @@ var PlantID = (() => {
     if (fallback) fallback.style.display = 'none';
     const refine = $('pid-gps-refine');
     if (refine) refine.style.display = 'block';
+    persistSession();
   }
 
   function captureGPS() {
@@ -220,6 +289,27 @@ var PlantID = (() => {
     if (btn) btn.disabled = !(_photoBase64 && _selectedOrgan);
   }
 
+  /* Once a result exists, the top "Identify plant" button and photo/organ
+     pickers are hidden — re-running them silently discarded any supplemental
+     photo already queued via "Add photo to improve ID". The result card's
+     own "Add photo to improve ID" / "New plant" controls are the only way
+     forward from here. */
+  function hideIdentifyControls() {
+    const photoBtns = $('pid-photo-buttons');
+    if (photoBtns) photoBtns.style.display = 'none';
+    const organSection = $('pid-organ-section');
+    if (organSection) organSection.style.display = 'none';
+    const identifyBtn = $('pid-identify-btn');
+    if (identifyBtn) identifyBtn.style.display = 'none';
+  }
+
+  function showIdentifyControls() {
+    const photoBtns = $('pid-photo-buttons');
+    if (photoBtns) photoBtns.style.display = 'flex';
+    const identifyBtn = $('pid-identify-btn');
+    if (identifyBtn) identifyBtn.style.display = '';
+  }
+
   /* ── Clear / New plant ── */
   function clearForm() {
     _photoBase64        = null;
@@ -231,8 +321,10 @@ var PlantID = (() => {
     _lastZone             = '';
     _lastNotes            = '';
     _plantNetCandidates   = null;
+    _lastPrevConfidence   = null;
     resetOrganSelect();
-    try { sessionStorage.removeItem('fc_photo_b64'); } catch(e) {}
+    clearPersistedSession();
+    showIdentifyControls();
 
     const preview = $('pid-photo-preview');
     if (preview) { preview.src = ''; preview.style.display = 'none'; }
@@ -274,6 +366,7 @@ var PlantID = (() => {
     _supplementalPhotos = [];
     _supplementalOrgans = [];
     _plantNetCandidates = null;
+    _lastPrevConfidence = null;
 
     showSpinner(true);
     hideResult();
@@ -301,6 +394,7 @@ var PlantID = (() => {
     try {
       const result = await callClaudeAPI(key, _lastNotes, null, _plantNetCandidates);
       _lastResult = result;
+      persistSession();
       showResult(result, _lastZone, _lastNotes);
     } catch (err) {
       showSpinner(false);
@@ -313,12 +407,15 @@ var PlantID = (() => {
     const key = App.getApiKey();
     if (!key) return;
 
+    _lastPrevConfidence = _lastResult ? _lastResult.confidence : null;
+
     showSpinner(true);
     hideResult();
 
+    const totalPhotos = 1 + _supplementalPhotos.length;
     const pnKey = App.getPlantNetKey();
     if (pnKey && navigator.onLine) {
-      setSpinnerMsg('Step 1 of 2: Identifying species…');
+      setSpinnerMsg(`Step 1 of 2: Re-identifying with ${totalPhotos} photos…`);
       try {
         _plantNetCandidates = await callPlantNetAPI(pnKey, _supplementalPhotos, _supplementalOrgans);
       } catch(e) {
@@ -326,6 +423,8 @@ var PlantID = (() => {
         _plantNetCandidates = null;
       }
       setSpinnerMsg('Step 2 of 2: Getting property advice…');
+    } else {
+      setSpinnerMsg(`Re-analyzing with ${totalPhotos} photos…`);
     }
 
     const extraNote = _lastNotes
@@ -335,6 +434,7 @@ var PlantID = (() => {
     try {
       const result = await callClaudeAPI(key, extraNote, _supplementalPhotos, _plantNetCandidates);
       _lastResult = result;
+      persistSession();
       showResult(result, _lastZone, _lastNotes);
     } catch (err) {
       showSpinner(false);
@@ -535,6 +635,21 @@ var PlantID = (() => {
     </div>`;
   }
 
+  /* How many photos contributed to the current result, and whether
+     confidence moved since the previous (pre-supplemental-photo) run. */
+  function photoCountHTML() {
+    const photoCount = 1 + _supplementalPhotos.length;
+    if (photoCount <= 1) return '';
+    const organs = [_selectedOrgan, ..._supplementalOrgans].filter(Boolean);
+    const organLabel = organs.length ? ` (${esc(organs.join(' + '))})` : '';
+    return `<div style="font-size:10px;color:var(--muted);margin:2px 0 6px">🖼️ Identified from ${photoCount} photos${organLabel}</div>`;
+  }
+
+  function confidenceDeltaHTML(confidence) {
+    if (!_lastPrevConfidence || _lastPrevConfidence === confidence) return '';
+    return `<div style="font-size:11px;color:var(--muted);margin:2px 0 6px">Confidence: ${esc(_lastPrevConfidence)} → <strong>${esc(confidence)}</strong></div>`;
+  }
+
   function showResult(result, zone, notes) {
     showSpinner(false);
     const threshold = App.getConfidenceThreshold();
@@ -548,6 +663,7 @@ var PlantID = (() => {
   function showNormalResult(result, zone, notes) {
     const container = $('pid-result');
     container.style.display = 'block';
+    hideIdentifyControls();
 
     const csvRow    = buildCSVRow(result, zone, notes);
     const isKeystone = result.keystone ? '<span class="badge badge-keystone">⭐ Keystone</span>' : '';
@@ -569,7 +685,9 @@ var PlantID = (() => {
         <div class="result-name">${esc(result.common_name || 'Unknown plant')}</div>
         <div class="result-latin">${esc(result.latin_name || '')}</div>
         <div style="display:flex;gap:6px;flex-wrap:wrap;margin:6px 0">${nativeStatusBadge(result.native_status)} ${isKeystone}</div>
+        ${photoCountHTML()}
         ${confidenceBarHTML(result.confidence)}
+        ${confidenceDeltaHTML(result.confidence)}
         <div class="action-box ${actionClass(result.recommended_action)}" style="margin-top:10px">
           ${actionIcon(result.recommended_action)} <strong>${esc(result.recommended_action)}</strong> — ${esc(result.action_detail || '')}
         </div>
@@ -594,6 +712,7 @@ var PlantID = (() => {
           <div style="display:flex;gap:8px;margin-top:8px;flex-wrap:wrap">
             <button class="btn btn-outline btn-sm" id="pid-copy-csv">📋 Copy CSV row</button>
             <button class="btn btn-sm" id="pid-save-obs">💾 Save observation</button>
+            <button class="btn btn-outline btn-sm" id="pid-save-gallery">🖼️ Save photo to gallery</button>
           </div>
           <div style="display:flex;gap:8px;margin-top:8px;flex-wrap:wrap">
             ${result.action_detail ? `<button class="btn btn-outline btn-sm" id="pid-add-rec-task" style="color:var(--green);border-color:var(--green)">＋ Add recommended task</button>` : ''}
@@ -610,10 +729,11 @@ var PlantID = (() => {
             <button type="button" class="organ-pill" data-organ="habit">🌿 Habit</button>
             <button type="button" class="organ-pill" data-organ="other">❓ Other</button>
           </div>
-          <label class="btn btn-outline" id="pid-normal-supp-label" style="width:100%;text-align:center;cursor:pointer;box-sizing:border-box;display:block">
+          <label class="btn btn-outline" id="pid-normal-supp-label" style="width:100%;text-align:center;cursor:pointer;box-sizing:border-box;display:block;opacity:0.5;pointer-events:none">
             📷 Add photo to improve ID
             <input type="file" id="pid-normal-supp-input" accept="image/*" capture="environment" style="display:none">
           </label>
+          <div style="font-size:10px;color:var(--muted);margin-top:4px">Select a plant part above to enable</div>
         </div>
         <div style="margin-top:10px">
           <button class="btn btn-outline" id="pid-new-plant" style="width:100%">🔄 New plant</button>
@@ -622,6 +742,7 @@ var PlantID = (() => {
 
     $('pid-copy-csv').addEventListener('click', () => App.copyToClipboard(csvRow));
     $('pid-save-obs').addEventListener('click', () => saveObservation(result, zone, notes, csvRow));
+    $('pid-save-gallery').addEventListener('click', () => saveToGallery(result));
     $('pid-new-plant').addEventListener('click', clearForm);
 
     // Disagreement buttons (only exist when disagrees === true)
@@ -670,6 +791,8 @@ var PlantID = (() => {
         normalPills.forEach(p => p.classList.remove('selected'));
         pill.classList.add('selected');
         _normalSuppOrgan = pill.dataset.organ;
+        const label = $('pid-normal-supp-label');
+        if (label) { label.style.opacity = '1'; label.style.pointerEvents = 'auto'; }
       });
     });
     $('pid-normal-supp-input').addEventListener('change', async e => {
@@ -684,6 +807,8 @@ var PlantID = (() => {
         const compressed = await compressImage(ev.target.result, 2000, 0.95);
         _supplementalPhotos.push({ data: compressed.split(',')[1], type: 'image/jpeg' });
         _supplementalOrgans.push(_normalSuppOrgan);
+        persistSession();
+        App.toast(`Photo added — re-analyzing with ${1 + _supplementalPhotos.length} photos…`);
         await reIdentify();
       };
       reader.readAsDataURL(file);
@@ -693,6 +818,7 @@ var PlantID = (() => {
   function showLowConfidenceResult(result, zone, notes) {
     const container = $('pid-result');
     container.style.display = 'block';
+    hideIdentifyControls();
 
     const isKeystone = result.keystone ? '<span class="badge badge-keystone">⭐ Keystone</span>' : '';
     const photoTip   = result.photo_tip
@@ -708,7 +834,9 @@ var PlantID = (() => {
           ${nativeStatusBadge(result.native_status)} ${isKeystone}
           <span class="badge" style="background:#fdf0d8;color:#7a4e00">⚠️ Low confidence</span>
         </div>
+        ${photoCountHTML()}
         ${confidenceBarHTML(result.confidence)}
+        ${confidenceDeltaHTML(result.confidence)}
         <div class="action-box ${actionClass(result.recommended_action)}" style="margin-top:10px">
           ${actionIcon(result.recommended_action)} <strong>${esc(result.recommended_action)}</strong> — ${esc(result.action_detail || '')}
         </div>
@@ -726,11 +854,13 @@ var PlantID = (() => {
           <button type="button" class="organ-pill" data-organ="habit">🌿 Habit</button>
           <button type="button" class="organ-pill" data-organ="other">❓ Other</button>
         </div>
-        <label class="btn btn-amber" style="cursor:pointer" id="pid-supp-photo-label">
+        <label class="btn btn-amber" style="cursor:pointer;opacity:0.5;pointer-events:none" id="pid-supp-photo-label">
           📷 Add photo to improve ID
           <input type="file" id="pid-supplemental-input" accept="image/*" capture="environment" style="display:none">
         </label>
+        <div style="font-size:10px;color:var(--muted)">Select a plant part above to enable</div>
         <button class="btn btn-outline" id="pid-save-anyway">Save anyway (low confidence)</button>
+        <button class="btn btn-outline" id="pid-lc-save-gallery">🖼️ Save photo to gallery</button>
         <button class="btn btn-outline" id="pid-low-conf-new-plant">🔄 New plant</button>
       </div>`;
 
@@ -744,7 +874,7 @@ var PlantID = (() => {
         _suppOrganSelected = pill.dataset.organ;
         // Enable photo button once organ is picked
         const photoLabel = $('pid-supp-photo-label');
-        if (photoLabel) photoLabel.style.opacity = '1';
+        if (photoLabel) { photoLabel.style.opacity = '1'; photoLabel.style.pointerEvents = 'auto'; }
       });
     });
 
@@ -760,12 +890,15 @@ var PlantID = (() => {
         const compressed = await compressImage(ev.target.result, 2000, 0.95);
         _supplementalPhotos.push({ data: compressed.split(',')[1], type: 'image/jpeg' });
         _supplementalOrgans.push(_suppOrganSelected);
+        persistSession();
+        App.toast(`Photo added — re-analyzing with ${1 + _supplementalPhotos.length} photos…`);
         await reIdentify();
       };
       reader.readAsDataURL(file);
     });
 
     $('pid-save-anyway').addEventListener('click', () => showNormalResult(result, zone, notes));
+    $('pid-lc-save-gallery').addEventListener('click', () => saveToGallery(result));
     $('pid-low-conf-new-plant').addEventListener('click', clearForm);
 
     // Add task from low-confidence card too
@@ -782,6 +915,47 @@ var PlantID = (() => {
     });
     const lcActions = container.querySelector('[id="pid-low-conf-new-plant"]');
     if (lcActions && lcActions.parentNode) lcActions.parentNode.insertBefore(lcAddTaskBtn, lcActions);
+  }
+
+  /* ── Save photo to gallery, with the ID baked into the EXIF description ── */
+  function buildExifDescription(result) {
+    const parts = [];
+    parts.push(`${result.common_name || 'Unknown plant'} (${result.latin_name || '?'})`);
+    if (result.confidence) parts.push(`${result.confidence} confidence`);
+    const pnTop = (_plantNetCandidates && _plantNetCandidates.length) ? _plantNetCandidates[0] : null;
+    if (pnTop && pnTop.score) parts.push(`PlantNet ${pnTop.score}%`);
+    if (result.native_status) parts.push(result.native_status);
+    if (result.recommended_action) {
+      parts.push(result.recommended_action + (result.action_detail ? ': ' + result.action_detail : ''));
+    }
+    return 'Field Companion ID -- ' + parts.join(' | ');
+  }
+
+  async function saveToGallery(result) {
+    if (!_photoBase64) { App.toast('No photo to save'); return; }
+    try {
+      const byteStr = atob(_photoBase64);
+      const bytes = new Uint8Array(byteStr.length);
+      for (let i = 0; i < byteStr.length; i++) bytes[i] = byteStr.charCodeAt(i);
+
+      const withExif = ExifWriter.writeDescription(bytes, buildExifDescription(result));
+      const blob = new Blob([withExif], { type: 'image/jpeg' });
+      const url  = URL.createObjectURL(blob);
+
+      const safeName = (result.latin_name || result.common_name || 'plant')
+        .replace(/[^a-z0-9]+/gi, '-').replace(/^-+|-+$/g, '').toLowerCase();
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `fieldcompanion_${App.todayISO()}_${safeName}.jpg`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      setTimeout(() => URL.revokeObjectURL(url), 5000);
+
+      App.toast('Photo saved to Downloads — enable "Download" backup in Google Photos settings to sync it ✓', 5000);
+    } catch (err) {
+      App.toast('Could not save photo: ' + err.message);
+    }
   }
 
   function buildCSVRow(result, zone, notes) {
@@ -826,6 +1000,7 @@ var PlantID = (() => {
       App.toast('Observation saved ✓');
       const btn = $('pid-save-obs');
       if (btn) { btn.textContent = '✓ Saved'; btn.disabled = true; }
+      clearPersistedSession();
     } catch (err) {
       App.toast('Save failed: ' + err.message);
     }
