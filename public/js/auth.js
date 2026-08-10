@@ -29,6 +29,7 @@ var Auth = (() => {
     _user  = { email: data.email, name: data.name };
     localStorage.setItem(TOKEN_KEY, _token);
     localStorage.setItem(USER_KEY, JSON.stringify(_user));
+    App.setSessionExpiredBanner(false);
     return _user;
   }
 
@@ -46,6 +47,7 @@ var Auth = (() => {
     _user  = null;
     localStorage.removeItem(TOKEN_KEY);
     localStorage.removeItem(USER_KEY);
+    App.setSessionExpiredBanner(false);
   }
 
   /* ── Verify session with server (call on app start) ── */
@@ -56,10 +58,13 @@ var Auth = (() => {
         headers: { Authorization: 'Bearer ' + _token },
       });
       if (!res.ok) {
-        // session invalid/expired — clear local state
+        // A token we had is no longer valid (expired, revoked) — as opposed to
+        // never having signed in at all. Surface this; it previously reverted
+        // to local-only mode with zero indication anything had changed.
         _token = null; _user = null;
         localStorage.removeItem(TOKEN_KEY);
         localStorage.removeItem(USER_KEY);
+        App.setSessionExpiredBanner(true);
         return false;
       }
       const data = await res.json();
@@ -75,10 +80,16 @@ var Auth = (() => {
   /* ── Google Identity Services callback ── */
   function handleCredentialResponse(response) {
     signInWithToken(response.credential)
-      .then(user => {
+      .then(async user => {
         App.toast('Signed in as ' + user.name + ' ✓');
         // Update settings panel UI
         renderAuthUI();
+        // Move any device-local custom tasks to the cloud before Tasks switches
+        // to cloud mode, so they don't silently vanish from view.
+        if (window.Tasks && Tasks.migrateLocalTasks) {
+          await Tasks.migrateLocalTasks().catch(console.warn);
+          if (Tasks.refresh) Tasks.refresh();
+        }
         // Full sync now that we're signed in (observations + boundaries)
         if (window.Sync) Sync.fullSync();
       })

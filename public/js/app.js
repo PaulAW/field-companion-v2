@@ -239,6 +239,16 @@ const App = (() => {
     }
   }
 
+  /* ── Session-expired banner ──
+     Only shown when a *previously valid* sign-in has expired (detected by
+     Auth.verifySession()) — never for someone who simply hasn't signed in,
+     since offline/local-only use is a normal, intentional mode for this app. */
+  function setSessionExpiredBanner(show) {
+    const banner = document.getElementById('session-expired-banner');
+    if (!banner) return;
+    banner.classList.toggle('show', !!show);
+  }
+
   /* ── Toast notifications ── */
   let _toastTimer = null;
   function toast(msg, duration = 2500) {
@@ -294,6 +304,8 @@ const App = (() => {
 
   function setupSettings() {
     document.getElementById('settings-btn').addEventListener('click', openSettings);
+    const sessionBanner = document.getElementById('session-expired-banner');
+    if (sessionBanner) sessionBanner.addEventListener('click', openSettings);
     document.getElementById('settings-close').addEventListener('click', closeSettings);
     document.getElementById('settings-panel').addEventListener('click', e => {
       if (e.target === document.getElementById('settings-panel')) closeSettings();
@@ -494,7 +506,7 @@ const App = (() => {
     getPlantNetKey, setPlantNetKey, clearPlantNetKey,
     getConfidenceThreshold, setConfidenceThreshold,
     registerTab, switchTab, getTabScroll: id => _tabScroll[id] || 0,
-    toast,
+    toast, setSessionExpiredBanner,
     todayISO, formatDate,
     obsToCSVRow, obsArrayToCSV, copyToClipboard, downloadCSV,
     openSettings, closeSettings,

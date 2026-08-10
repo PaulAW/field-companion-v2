@@ -12,6 +12,7 @@ var Tasks = (() => {
   let _editingId   = null;   // task id currently in edit mode (null = none)
   let _viewMode       = localStorage.getItem('fc_tasks_view') || 'season'; // 'season' | 'zone'
   let _openZoneGroups = new Set(JSON.parse(localStorage.getItem('fc_open_zone_groups') || '[]'));
+  let _localFallback  = false;  // true when cloud mode intended but the last fetch failed/was empty
 
   function saveOpenGroups() {
     localStorage.setItem('fc_open_zone_groups', JSON.stringify([..._openZoneGroups]));
@@ -59,16 +60,21 @@ var Tasks = (() => {
       // but keep _cloudMode = true so the user can still add/edit tasks via cloud.
       if (cloudTasks.length === 0) {
         console.warn('Tasks: cloud returned 0 tasks, showing local static tasks');
+        _localFallback = true;
         loadLocalTasks();   // loads display data only — _cloudMode stays true
       } else {
+        _localFallback = false;
         _tasks = cloudTasks;
         _tasks.sort((a, b) => (a.sort_order - b.sort_order) || a.text.localeCompare(b.text));
       }
       render();
     } catch(e) {
-      // Network/auth error — show local tasks for display but keep cloud mode so
-      // the UI remains functional when connectivity recovers.
+      // Network/auth error (including an expired session) — show local tasks for
+      // display but keep cloud mode so the UI remains functional when connectivity
+      // recovers. This previously failed completely silently — render() now shows
+      // a banner whenever _localFallback is true so it's never invisible again.
       console.warn('Tasks cloud load failed, showing local tasks as fallback:', e);
+      _localFallback = true;
       loadLocalTasks();   // loads display data only — _cloudMode stays true
       render();
     } finally {
@@ -118,6 +124,56 @@ var Tasks = (() => {
         _tasks.push({ ...t, completed: !!state[t.id], _cloud: false });
       });
     } catch {}
+  }
+
+  /* ── Migrate device-local custom tasks to the cloud on sign-in ──
+     Custom tasks added while this device was signed out (or silently in
+     local-fallback mode) live only in this browser's localStorage and are
+     invisible to cloud mode / the MCP server. Push them to D1 so signing in
+     doesn't quietly orphan them. */
+  async function migrateLocalTasks() {
+    let custom = [];
+    try { custom = JSON.parse(localStorage.getItem('fc_custom_tasks') || '[]'); } catch(e) { return; }
+    const localOnly = custom.filter(t => String(t.id || '').startsWith('local-'));
+    if (localOnly.length === 0) return;
+
+    let state = {};
+    try { state = JSON.parse(localStorage.getItem(STORAGE_KEY) || '{}'); } catch(e) {}
+
+    let migrated = 0;
+    const stillLocal = [];
+    for (const t of custom) {
+      if (!String(t.id || '').startsWith('local-')) { continue; }
+      try {
+        const res = await fetch(BACKEND + '/tasks', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', ...authHeader() },
+          body: JSON.stringify({
+            season: t.season, text: t.text, zone: t.zone || null,
+            urgent: t.urgent ? 1 : 0, sort_order: t.sort_order || 9000,
+            observation_id: t.observation_id || null, observation_name: t.observation_name || null,
+          }),
+        });
+        if (!res.ok) throw new Error(res.status);
+        const data = await res.json();
+        if (state[t.id]) {
+          await fetch(`${BACKEND}/tasks/${encodeURIComponent(data.id)}/toggle`, {
+            method: 'POST', headers: { ...authHeader() },
+          });
+        }
+        migrated++;
+      } catch(e) {
+        console.warn('Task migration failed for', t.id, e);
+        stillLocal.push(t); // keep it locally so we retry on next sign-in
+      }
+    }
+
+    // Drop successfully-migrated tasks from local storage so cloud mode
+    // (which never reads fc_custom_tasks) doesn't leave stale duplicates behind.
+    const kept = custom.filter(t => !String(t.id || '').startsWith('local-')).concat(stillLocal);
+    localStorage.setItem('fc_custom_tasks', JSON.stringify(kept));
+
+    if (migrated > 0) App.toast(`Moved ${migrated} local task${migrated !== 1 ? 's' : ''} to the cloud ✓`);
   }
 
   function saveLocalCustomTask(task) {
@@ -416,6 +472,12 @@ var Tasks = (() => {
     const container = $('tasks-container');
     if (!container) return;
 
+    const fallbackBanner = (_cloudMode && _localFallback) ? `
+      <div class="alert alert-warn" style="margin-bottom:10px">
+        ⚠️ Showing local tasks only — cloud sync failed or your session expired, so this may not match what's on your other devices.
+        <a href="#" id="tasks-resync-link" style="color:inherit;text-decoration:underline;font-weight:600">Retry</a>
+      </div>` : '';
+
     const toggleHTML = `
       <div style="display:flex;gap:6px;align-items:center;margin-bottom:12px">
         <span style="font-size:11px;color:var(--muted);flex-shrink:0">Group by:</span>
@@ -424,19 +486,22 @@ var Tasks = (() => {
       </div>`;
 
     if (_viewMode === 'zone') {
-      container.innerHTML = toggleHTML + zoneGroupsHTML();
+      container.innerHTML = fallbackBanner + toggleHTML + zoneGroupsHTML();
       container.querySelectorAll('.tasks-view-toggle').forEach(btn =>
         btn.addEventListener('click', () => { _viewMode = btn.dataset.view; localStorage.setItem('fc_tasks_view', _viewMode); render(); })
       );
       wireZoneGroupEvents();
     } else {
       const curSeason = currentSeasonId();
-      container.innerHTML = toggleHTML + SEASONS.map(s => seasonOuterHTML(s, s.id === curSeason)).join('');
+      container.innerHTML = fallbackBanner + toggleHTML + SEASONS.map(s => seasonOuterHTML(s, s.id === curSeason)).join('');
       container.querySelectorAll('.tasks-view-toggle').forEach(btn =>
         btn.addEventListener('click', () => { _viewMode = btn.dataset.view; localStorage.setItem('fc_tasks_view', _viewMode); render(); })
       );
       SEASONS.forEach(s => wireSeasonEvents(s.id));
     }
+
+    const resyncLink = $('tasks-resync-link');
+    if (resyncLink) resyncLink.addEventListener('click', e => { e.preventDefault(); onShow(); });
 
     // Restore scroll position when returning to this tab after async cloud load
     if (_restoreScrollOnRender) {
@@ -792,5 +857,5 @@ var Tasks = (() => {
     return _tasks.filter(t => t.zone && t.zone.split(',').map(z => z.trim()).includes(zoneId));
   }
 
-  return { init, openAddTaskSheet, getTasksForZone, openEditFromExternal };
+  return { init, openAddTaskSheet, getTasksForZone, openEditFromExternal, migrateLocalTasks, refresh: onShow };
 })();

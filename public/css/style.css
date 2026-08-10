@@ -77,6 +77,17 @@ body {
 }
 #offline-banner.show { display: block; }
 
+#session-expired-banner {
+  display: none;
+  background: var(--amber);
+  color: #fff;
+  font-size: 12px;
+  padding: 7px 16px;
+  text-align: center;
+  cursor: pointer;
+}
+#session-expired-banner.show { display: block; }
+
 /* ── Tab Nav ── */
 #tab-nav {
   background: #fff;
