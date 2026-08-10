@@ -66,27 +66,24 @@ body {
 }
 #settings-btn:active { background: rgba(255,255,255,.15); }
 
-/* ── Offline Banner ── */
-#offline-banner {
-  display: none;
-  background: var(--red);
-  color: #fff;
-  font-size: 12px;
-  padding: 7px 16px;
-  text-align: center;
-}
-#offline-banner.show { display: block; }
-
-#session-expired-banner {
-  display: none;
-  background: var(--amber);
-  color: #fff;
-  font-size: 12px;
-  padding: 7px 16px;
-  text-align: center;
+/* ── Sync status dot ──
+   red = offline (can't sync regardless of sign-in state)
+   yellow = online but not signed in (could sync, isn't)
+   green = online and signed in (syncing/current) */
+.status-dot {
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  border: 2px solid rgba(255,255,255,.55);
+  padding: 0;
   cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+  background: var(--muted);
+  transition: background-color .2s ease;
 }
-#session-expired-banner.show { display: block; }
+.status-dot.dot-red    { background: var(--red); }
+.status-dot.dot-yellow { background: var(--amber); }
+.status-dot.dot-green  { background: #4a9c5a; }
 
 /* ── Tab Nav ── */
 #tab-nav {

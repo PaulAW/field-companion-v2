@@ -1,6 +1,6 @@
 /* app.js — Field Companion core: routing, data loading, IndexedDB, toast, offline */
 
-const APP_BUILD = '2026-08-10-a';   // bump this letter each deploy for version tracking
+const APP_BUILD = '2026-08-10-b';   // bump this letter each deploy for version tracking
 
 const App = (() => {
   let _zones = [];
@@ -229,24 +229,41 @@ const App = (() => {
     }, { passive: true });
   }
 
-  /* ── Offline detection ── */
-  function updateOnlineStatus() {
-    const banner = document.getElementById('offline-banner');
+  /* ── Sync status dot ──
+     red = offline (can't sync no matter what)
+     yellow = online but not signed in (could sync, isn't)
+     green = online and signed in (syncing/current) */
+  function updateSyncStatusDot() {
+    const dot = document.getElementById('sync-status-dot');
+    if (!dot) return;
+    const signedIn = !!(window.Auth && Auth.isSignedIn());
+    let cls, label;
     if (!navigator.onLine) {
-      banner.classList.add('show');
+      cls = 'dot-red'; label = '📵 Offline — Plant ID unavailable, other tabs still work.';
+    } else if (!signedIn) {
+      cls = 'dot-yellow';
+      const last = window.Auth && Auth.getLastUser && Auth.getLastUser();
+      label = last
+        ? `Online, not signed in — sign back in as ${last.name || last.email} to resume syncing.`
+        : 'Online, not signed in — sign in via Settings to sync across devices.';
     } else {
-      banner.classList.remove('show');
+      cls = 'dot-green'; label = 'Online and signed in — syncing.';
     }
+    dot.classList.remove('dot-red', 'dot-yellow', 'dot-green');
+    dot.classList.add(cls);
+    dot.title = label;
+    dot.setAttribute('aria-label', label);
   }
 
-  /* ── Session-expired banner ──
-     Only shown when a *previously valid* sign-in has expired (detected by
-     Auth.verifySession()) — never for someone who simply hasn't signed in,
-     since offline/local-only use is a normal, intentional mode for this app. */
-  function setSessionExpiredBanner(show) {
-    const banner = document.getElementById('session-expired-banner');
-    if (!banner) return;
-    banner.classList.toggle('show', !!show);
+  /* Reconnecting while signed in should sync automatically — no manual
+     "Sync now" required. Silent if there's nothing new (Sync/Tasks already
+     toast on anything actually pulled). */
+  function handleOnlineChange() {
+    updateSyncStatusDot();
+    if (navigator.onLine && window.Auth && Auth.isSignedIn()) {
+      if (window.Sync) Sync.fullSync().catch(console.warn);
+      if (window.Tasks && Tasks.refresh) Tasks.refresh();
+    }
   }
 
   /* ── Toast notifications ── */
@@ -304,8 +321,8 @@ const App = (() => {
 
   function setupSettings() {
     document.getElementById('settings-btn').addEventListener('click', openSettings);
-    const sessionBanner = document.getElementById('session-expired-banner');
-    if (sessionBanner) sessionBanner.addEventListener('click', openSettings);
+    const statusDot = document.getElementById('sync-status-dot');
+    if (statusDot) statusDot.addEventListener('click', openSettings);
     document.getElementById('settings-close').addEventListener('click', closeSettings);
     document.getElementById('settings-panel').addEventListener('click', e => {
       if (e.target === document.getElementById('settings-panel')) closeSettings();
@@ -441,9 +458,9 @@ const App = (() => {
       console.error('Field Companion: data load error:', err);
     }
 
-    window.addEventListener('online',  updateOnlineStatus);
-    window.addEventListener('offline', updateOnlineStatus);
-    updateOnlineStatus();
+    window.addEventListener('online',  handleOnlineChange);
+    window.addEventListener('offline', handleOnlineChange);
+    updateSyncStatusDot();
 
     document.querySelectorAll('.tab-btn').forEach(btn => {
       btn.addEventListener('click', () => switchTab(btn.dataset.tab));
@@ -488,6 +505,7 @@ const App = (() => {
         if (window.Sync && Auth.isSignedIn()) {
           setTimeout(() => Sync.fullSync().catch(console.warn), 2000);
         }
+        updateSyncStatusDot();
       }).catch(console.warn);
     }
 
@@ -506,7 +524,7 @@ const App = (() => {
     getPlantNetKey, setPlantNetKey, clearPlantNetKey,
     getConfidenceThreshold, setConfidenceThreshold,
     registerTab, switchTab, getTabScroll: id => _tabScroll[id] || 0,
-    toast, setSessionExpiredBanner,
+    toast, updateSyncStatusDot,
     todayISO, formatDate,
     obsToCSVRow, obsArrayToCSV, copyToClipboard, downloadCSV,
     openSettings, closeSettings,

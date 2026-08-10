@@ -29,14 +29,11 @@
       <h1>🌿 Field Companion</h1>
       <p>Paul Winer · SE Iowa · 52556 · <span id="app-build" style="font-size:10px;opacity:0.6"></span></p>
     </div>
-    <button id="settings-btn" title="Settings">⚙️</button>
+    <div style="display:flex;align-items:center;gap:6px">
+      <button id="sync-status-dot" class="status-dot" type="button" title="Sync status" aria-label="Sync status"></button>
+      <button id="settings-btn" title="Settings">⚙️</button>
+    </div>
   </header>
-
-  <!-- ── Offline Banner ── -->
-  <div id="offline-banner">📵 Offline — Plant ID unavailable. Log, Zones, Tasks, Drive still work.</div>
-
-  <!-- ── Session Expired Banner (only shown after a previously-valid sign-in expires) ── -->
-  <div id="session-expired-banner">⚠️ Cloud sync session expired — this device stopped syncing. Tap to sign in again →</div>
 
   <!-- ── Tab Screens ── -->
   <div id="screens">

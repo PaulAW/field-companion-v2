@@ -4,6 +4,7 @@ var Auth = (() => {
   const BACKEND = 'https://field-companion-backend.paulwiner5.workers.dev';
   const TOKEN_KEY = 'fc_session_token';
   const USER_KEY  = 'fc_user';
+  const LAST_USER_KEY = 'fc_last_user'; // survives sign-out/expiry, for a personalized re-sign-in prompt
 
   let _token = localStorage.getItem(TOKEN_KEY) || null;
   let _user  = (() => { try { return JSON.parse(localStorage.getItem(USER_KEY) || 'null'); } catch(e) { return null; } })();
@@ -12,6 +13,7 @@ var Auth = (() => {
   function getToken()     { return _token; }
   function getUser()      { return _user; }
   function isSignedIn()   { return !!_token && !!_user; }
+  function getLastUser()  { try { return JSON.parse(localStorage.getItem(LAST_USER_KEY) || 'null'); } catch(e) { return null; } }
 
   /* ── Sign in via Google ID token ── */
   async function signInWithToken(idToken) {
@@ -29,7 +31,8 @@ var Auth = (() => {
     _user  = { email: data.email, name: data.name };
     localStorage.setItem(TOKEN_KEY, _token);
     localStorage.setItem(USER_KEY, JSON.stringify(_user));
-    App.setSessionExpiredBanner(false);
+    localStorage.setItem(LAST_USER_KEY, JSON.stringify(_user));
+    App.updateSyncStatusDot();
     return _user;
   }
 
@@ -47,7 +50,7 @@ var Auth = (() => {
     _user  = null;
     localStorage.removeItem(TOKEN_KEY);
     localStorage.removeItem(USER_KEY);
-    App.setSessionExpiredBanner(false);
+    App.updateSyncStatusDot();
   }
 
   /* ── Verify session with server (call on app start) ── */
@@ -59,12 +62,15 @@ var Auth = (() => {
       });
       if (!res.ok) {
         // A token we had is no longer valid (expired, revoked) — as opposed to
-        // never having signed in at all. Surface this; it previously reverted
+        // never having signed in at all. Surface this once as a toast (the sync
+        // status dot then reflects the ongoing state); it previously reverted
         // to local-only mode with zero indication anything had changed.
+        const who = (_user && (_user.name || _user.email)) || 'your account';
         _token = null; _user = null;
         localStorage.removeItem(TOKEN_KEY);
         localStorage.removeItem(USER_KEY);
-        App.setSessionExpiredBanner(true);
+        App.toast(`Cloud sync session expired for ${who} — sign in again in Settings to resume`, 5000);
+        App.updateSyncStatusDot();
         return false;
       }
       const data = await res.json();
@@ -129,9 +135,13 @@ var Auth = (() => {
         if (window.Sync) Sync.fullSync();
       });
     } else {
+      const last = getLastUser();
+      const prompt = last
+        ? `Sign back in as <strong>${esc(last.name || last.email)}</strong> to resume syncing across devices.`
+        : 'Sign in to sync observations across devices.';
       el.innerHTML = `
         <div class="lbl">Cloud Sync</div>
-        <p style="font-size:12px;color:var(--muted);margin:0 0 8px">Sign in to sync observations across devices.</p>
+        <p style="font-size:12px;color:var(--muted);margin:0 0 8px">${prompt}</p>
         <div id="google-signin-btn"></div>`;
 
       // Render Google Sign-In button — always shows account chooser
@@ -169,5 +179,5 @@ var Auth = (() => {
     return String(s || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
   }
 
-  return { init, isSignedIn, getToken, getUser, signOut, verifySession, renderAuthUI, handleCredentialResponse };
+  return { init, isSignedIn, getToken, getUser, getLastUser, signOut, verifySession, renderAuthUI, handleCredentialResponse };
 })();
