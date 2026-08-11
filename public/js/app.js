@@ -1,6 +1,6 @@
 /* app.js — Field Companion core: routing, data loading, IndexedDB, toast, offline */
 
-const APP_BUILD = '2026-08-10-b';   // bump this letter each deploy for version tracking
+const APP_BUILD = '2026-08-11-a';   // bump this letter each deploy for version tracking
 
 const App = (() => {
   let _zones = [];
@@ -322,7 +322,11 @@ const App = (() => {
   function setupSettings() {
     document.getElementById('settings-btn').addEventListener('click', openSettings);
     const statusDot = document.getElementById('sync-status-dot');
-    if (statusDot) statusDot.addEventListener('click', openSettings);
+    if (statusDot) statusDot.addEventListener('click', () => {
+      // title/hover doesn't work on touch devices — show the same text as a toast
+      if (statusDot.title) toast(statusDot.title, 3500);
+      openSettings();
+    });
     document.getElementById('settings-close').addEventListener('click', closeSettings);
     document.getElementById('settings-panel').addEventListener('click', e => {
       if (e.target === document.getElementById('settings-panel')) closeSettings();

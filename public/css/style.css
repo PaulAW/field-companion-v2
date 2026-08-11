@@ -71,19 +71,29 @@ body {
    yellow = online but not signed in (could sync, isn't)
    green = online and signed in (syncing/current) */
 .status-dot {
+  width: 36px;
+  height: 36px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: none;
+  border: none;
+  padding: 0;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+.status-dot::after {
+  content: '';
   width: 12px;
   height: 12px;
   border-radius: 50%;
   border: 2px solid rgba(255,255,255,.55);
-  padding: 0;
-  cursor: pointer;
-  -webkit-tap-highlight-color: transparent;
   background: var(--muted);
   transition: background-color .2s ease;
 }
-.status-dot.dot-red    { background: var(--red); }
-.status-dot.dot-yellow { background: var(--amber); }
-.status-dot.dot-green  { background: #4a9c5a; }
+.status-dot.dot-red::after    { background: var(--red); }
+.status-dot.dot-yellow::after { background: var(--amber); }
+.status-dot.dot-green::after  { background: #4a9c5a; }
 
 /* ── Tab Nav ── */
 #tab-nav {
