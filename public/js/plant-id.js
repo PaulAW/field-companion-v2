@@ -12,6 +12,7 @@ var PlantID = (() => {
   let _plantNetCandidates   = null; // top-3 PlantNet results for hybrid flow
   let _selectedOrgan        = null; // organ type for primary photo
   let _lastPrevConfidence   = null; // confidence before the most recent re-identify, for delta display
+  let _savedObsId           = null; // local observation id once this result has been saved (or auto-saved for a task link)
 
   const SESSION_KEY = 'fc_pid_session';
 
@@ -322,6 +323,7 @@ var PlantID = (() => {
     _lastNotes            = '';
     _plantNetCandidates   = null;
     _lastPrevConfidence   = null;
+    _savedObsId           = null;
     resetOrganSelect();
     clearPersistedSession();
     showIdentifyControls();
@@ -764,21 +766,27 @@ var PlantID = (() => {
 
     const addRecTaskBtn = $('pid-add-rec-task');
     if (addRecTaskBtn && window.Tasks) {
-      addRecTaskBtn.addEventListener('click', () => {
+      addRecTaskBtn.addEventListener('click', async () => {
+        const obs = await ensureObservationSaved(result, zone, notes);
+        if (!obs) return;
         Tasks.openAddTaskSheet({
-          text:             result.action_detail || '',
-          zone:             zone || '',
-          urgent:           result.recommended_action === 'REMOVE',
-          observation_name: result.common_name + (zone ? ' · Zone ' + zone : ''),
+          text:              result.action_detail || '',
+          zone:              zone || '',
+          urgent:            result.recommended_action === 'REMOVE',
+          observation_id:    obs.id,
+          observation_name:  obs.name,
         });
       });
     }
     const addTaskBtn = $('pid-add-task');
     if (addTaskBtn && window.Tasks) {
-      addTaskBtn.addEventListener('click', () => {
+      addTaskBtn.addEventListener('click', async () => {
+        const obs = await ensureObservationSaved(result, zone, notes);
+        if (!obs) return;
         Tasks.openAddTaskSheet({
-          zone:             zone || '',
-          observation_name: result.common_name + (zone ? ' · Zone ' + zone : ''),
+          zone:              zone || '',
+          observation_id:    obs.id,
+          observation_name:  obs.name,
         });
       });
     }
@@ -906,10 +914,14 @@ var PlantID = (() => {
     lcAddTaskBtn.className = 'btn btn-outline';
     lcAddTaskBtn.style.cssText = 'color:var(--green);border-color:var(--green)';
     lcAddTaskBtn.textContent = '＋ Add task';
-    lcAddTaskBtn.addEventListener('click', () => {
-      if (window.Tasks) Tasks.openAddTaskSheet({
+    lcAddTaskBtn.addEventListener('click', async () => {
+      if (!window.Tasks) return;
+      const obs = await ensureObservationSaved(result, zone, notes);
+      if (!obs) return;
+      Tasks.openAddTaskSheet({
         zone: zone || '',
-        observation_name: result.common_name + (zone ? ' · Zone ' + zone : ''),
+        observation_id: obs.id,
+        observation_name: obs.name,
         text: result.action_detail || '',
       });
     });
@@ -977,7 +989,7 @@ var PlantID = (() => {
     return App.obsToCSVRow(obs);
   }
 
-  async function saveObservation(result, zone, notes, csvRow) {
+  async function doSaveObservation(result, zone, notes) {
     const log = result.log_entry || {};
     const obs = {
       date:             App.todayISO(),
@@ -995,14 +1007,37 @@ var PlantID = (() => {
       ai_identified:    true,
       confidence:       result.confidence || null,
     };
+    const localId = await App.saveObservation(obs);
+    _savedObsId = localId;
+    const btn = $('pid-save-obs');
+    if (btn) { btn.textContent = '✓ Saved'; btn.disabled = true; }
+    clearPersistedSession();
+    return { id: localId, name: obs.common_name + (obs.zone ? ' · Zone ' + obs.zone : '') };
+  }
+
+  async function saveObservation(result, zone, notes, csvRow) {
     try {
-      await App.saveObservation(obs);
+      await doSaveObservation(result, zone, notes);
       App.toast('Observation saved ✓');
-      const btn = $('pid-save-obs');
-      if (btn) { btn.textContent = '✓ Saved'; btn.disabled = true; }
-      clearPersistedSession();
     } catch (err) {
       App.toast('Save failed: ' + err.message);
+    }
+  }
+
+  /* Auto-save the observation (if not already saved this session) so an "Add task" button
+     can link the task to a real, GPS-tagged record instead of just a free-text label that
+     has nothing behind it once the conversation/session ends. */
+  async function ensureObservationSaved(result, zone, notes) {
+    if (_savedObsId) {
+      const log = result.log_entry || {};
+      const commonName = result.common_name || log.common_name || '';
+      return { id: _savedObsId, name: commonName + (zone ? ' · Zone ' + zone : '') };
+    }
+    try {
+      return await doSaveObservation(result, zone, notes);
+    } catch (err) {
+      App.toast('Could not save observation: ' + err.message);
+      return null;
     }
   }
 

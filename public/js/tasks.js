@@ -10,6 +10,7 @@ var Tasks = (() => {
   let _cloudMode   = false;
   let _loading     = false;
   let _editingId   = null;   // task id currently in edit mode (null = none)
+  let _editLinkCtl = null;   // wireLinkSection() handle for the task currently being edited
   let _viewMode       = localStorage.getItem('fc_tasks_view') || 'season'; // 'season' | 'zone'
   let _openZoneGroups = new Set(JSON.parse(localStorage.getItem('fc_open_zone_groups') || '[]'));
   let _localFallback  = false;  // true when cloud mode intended but the last fetch failed/was empty
@@ -93,6 +94,10 @@ var Tasks = (() => {
       sort_order:       t.sort_order || 0,
       observation_id:   t.observation_id || null,
       observation_name: t.observation_name || null,
+      lat:              t.lat || null,
+      lng:              t.lng || null,
+      no_location:      !!(t.no_location === 1 || t.no_location === true),
+      created_at:       t.created_at || null,
       _cloud: true,
     };
   }
@@ -152,6 +157,10 @@ var Tasks = (() => {
             season: t.season, text: t.text, zone: t.zone || null,
             urgent: t.urgent ? 1 : 0, sort_order: t.sort_order || 9000,
             observation_id: t.observation_id || null, observation_name: t.observation_name || null,
+            lat: t.lat || null, lng: t.lng || null,
+            // Locally-created tasks predate the link requirement — fall back to "general
+            // task" on migration rather than getting stuck retrying forever.
+            no_location: !(t.observation_id || (t.lat && t.lng)),
           }),
         });
         if (!res.ok) throw new Error(res.status);
@@ -251,9 +260,11 @@ var Tasks = (() => {
   }
 
   /* ── Add task ── */
-  async function addTask(seasonId, text, zone, urgent, obsId, obsName) {
+  async function addTask(seasonId, text, zone, urgent, obsId, obsName, lat, lng, noLocation) {
     text = text.trim();
     if (!text) { App.toast('Enter task text'); return; }
+
+    const now = new Date().toISOString();
 
     if (_cloudMode) {
       const maxOrder = _tasks.filter(t => t.season === seasonId).reduce((m, t) => Math.max(m, t.sort_order), 0);
@@ -265,21 +276,26 @@ var Tasks = (() => {
             season: seasonId, text, zone: zone || null,
             urgent: urgent ? 1 : 0, sort_order: maxOrder + 1,
             observation_id: obsId || null, observation_name: obsName || null,
+            lat: lat || null, lng: lng || null, no_location: !!noLocation,
           }),
         });
-        if (!res.ok) throw new Error(res.status);
+        if (!res.ok) {
+          const body = await res.json().catch(() => ({}));
+          throw new Error(body.error || res.status);
+        }
         const data = await res.json();
         _tasks.push(normaliseCloud({
           id: data.id, season: seasonId, text,
           zone: zone || null, urgent: urgent ? 1 : 0, completed: 0,
           sort_order: maxOrder + 1,
           observation_id: obsId || null, observation_name: obsName || null,
+          lat: lat || null, lng: lng || null, created_at: now,
         }));
         renderSeason(seasonId);
         App.toast('Task added ✓');
       } catch(e) {
         console.warn('Add task failed:', e);
-        App.toast('Failed to add task');
+        App.toast('Failed to add task: ' + e.message);
       }
     } else {
       saveLocalCustomTask({
@@ -287,15 +303,102 @@ var Tasks = (() => {
         season: seasonId, text, zone: zone || null,
         urgent: !!urgent, sort_order: 9000,
         observation_id: obsId || null, observation_name: obsName || null,
+        lat: lat || null, lng: lng || null, no_location: !!noLocation, created_at: now,
       });
       App.toast('Task saved locally ✓');
     }
   }
 
+  /* ── Shared plant/GPS link controls — used by both the Add Task sheet and inline task edit.
+     Every manually-created task must resolve to one of: a linked observation, GPS coordinates,
+     or an explicit "general task" flag — otherwise it can silently lose all trace of what it
+     was about, the way some AI-authored tasks did before this existed. ── */
+  function linkSectionHTML(idPrefix, opts) {
+    opts = opts || {};
+    return `
+      <div style="margin-top:14px;padding-top:12px;border-top:1px solid var(--border)">
+        <label class="lbl">Link to a plant or place</label>
+        <div style="font-size:11px;color:var(--muted);margin-bottom:6px">Required, so this task can't lose its location — pick one:</div>
+        <input type="text" id="${idPrefix}-obs-search" list="${idPrefix}-obs-list" placeholder="🔗 Search a logged plant…" style="width:100%;margin-bottom:8px">
+        <datalist id="${idPrefix}-obs-list"></datalist>
+        <button class="btn btn-outline btn-sm" id="${idPrefix}-gps-btn" type="button" style="width:100%;margin-bottom:4px">📍 Capture current GPS</button>
+        <div id="${idPrefix}-gps-status" class="gps-status" style="min-height:14px;margin-bottom:8px">${opts.lat && opts.lng ? `✓ ${esc(opts.lat)}, ${esc(opts.lng)}` : ''}</div>
+        <label style="display:flex;align-items:center;gap:8px;font-size:13px;cursor:pointer">
+          <input type="checkbox" id="${idPrefix}-no-location" ${opts.noLocation ? 'checked' : ''}> General task — not tied to a specific plant or spot
+        </label>
+      </div>`;
+  }
+
+  function wireLinkSection(idPrefix, opts) {
+    opts = opts || {};
+    let gpsCoords = (opts.lat && opts.lng) ? { lat: opts.lat, lng: opts.lng } : null;
+    let linkedObs = opts.observationId ? { id: opts.observationId, name: opts.observationName } : null;
+    const obsMap  = {};
+
+    const gpsBtn      = $(`${idPrefix}-gps-btn`);
+    const gpsStatus   = $(`${idPrefix}-gps-status`);
+    const searchInput = $(`${idPrefix}-obs-search`);
+    const datalist    = $(`${idPrefix}-obs-list`);
+    const noLocEl     = $(`${idPrefix}-no-location`);
+
+    if (gpsBtn) gpsBtn.addEventListener('click', () => {
+      if (!gpsStatus) return;
+      gpsStatus.textContent = '📍 Locating…'; gpsStatus.className = 'gps-status';
+      if (!navigator.geolocation) {
+        gpsStatus.textContent = 'GPS not available'; gpsStatus.className = 'gps-error';
+        return;
+      }
+      navigator.geolocation.getCurrentPosition(
+        pos => {
+          gpsCoords = { lat: pos.coords.latitude.toFixed(6), lng: pos.coords.longitude.toFixed(6) };
+          gpsStatus.textContent = `✓ ${gpsCoords.lat}, ${gpsCoords.lng}`;
+          gpsStatus.className = 'gps-status';
+        },
+        () => {
+          gpsCoords = null;
+          gpsStatus.textContent = 'GPS unavailable'; gpsStatus.className = 'gps-error';
+        },
+        { enableHighAccuracy: true, timeout: 10000 }
+      );
+    });
+
+    if (searchInput && datalist) {
+      if (opts.observationName) searchInput.value = opts.observationName;
+      (window.App && App.getAllObservations ? App.getAllObservations() : Promise.resolve([]))
+        .then(obs => {
+          obs.slice(0, 150).forEach(o => {
+            if (!o.common_name) return;
+            const label = `${o.common_name}${o.zone ? ' · Zone ' + o.zone : ''}${o.date ? ' · ' + o.date : ''}`;
+            obsMap[label] = o;
+            const opt = document.createElement('option');
+            opt.value = label;
+            datalist.appendChild(opt);
+          });
+        }).catch(() => {});
+      searchInput.addEventListener('input', () => {
+        const match = obsMap[searchInput.value];
+        linkedObs = match ? { id: match.id, name: `${match.common_name}${match.zone ? ' · Zone ' + match.zone : ''}` } : null;
+      });
+    }
+
+    return {
+      getState() {
+        return {
+          observation_id:   linkedObs ? linkedObs.id : null,
+          observation_name: linkedObs ? linkedObs.name : null,
+          lat:              gpsCoords ? gpsCoords.lat : null,
+          lng:              gpsCoords ? gpsCoords.lng : null,
+          no_location:      noLocEl ? noLocEl.checked : false,
+        };
+      },
+    };
+  }
+
   /* ── Shared "Add Task" sheet — callable from Plant ID, Log, Map ── */
   function openAddTaskSheet(prefill) {
     prefill = prefill || {};
-    const defaultSeason = prefill.season || currentSeasonId();
+    const defaultSeason  = prefill.season || currentSeasonId();
+    const alreadyLinked  = !!prefill.observation_id;
     const modal = document.createElement('div');
     modal.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:400;display:flex;align-items:flex-end;';
     modal.innerHTML = `
@@ -304,7 +407,7 @@ var Tasks = (() => {
           <h3 style="font-size:16px">Add Task</h3>
           <button id="ats-close" style="background:none;border:none;font-size:24px;cursor:pointer;color:var(--muted)">✕</button>
         </div>
-        ${prefill.observation_name ? `<div style="font-size:11px;background:#f0f4f0;color:var(--green);border-radius:6px;padding:5px 9px;margin-bottom:10px">🔗 Linked to: <strong>${esc(prefill.observation_name)}</strong></div>` : ''}
+        ${alreadyLinked ? `<div style="font-size:11px;background:#f0f4f0;color:var(--green);border-radius:6px;padding:5px 9px;margin-bottom:10px">🔗 Linked to: <strong>${esc(prefill.observation_name)}</strong></div>` : ''}
         <div class="field">
           <label class="lbl">Task description</label>
           <input type="text" id="ats-text" value="${esc(prefill.text || '')}" placeholder="What needs to be done?" style="width:100%">
@@ -327,6 +430,7 @@ var Tasks = (() => {
         <label style="display:flex;align-items:center;gap:8px;margin-top:10px;font-size:13px;cursor:pointer">
           <input type="checkbox" id="ats-urgent" ${prefill.urgent ? 'checked' : ''}> Mark as urgent
         </label>
+        ${alreadyLinked ? '' : linkSectionHTML('ats')}
         <div style="display:flex;gap:8px;margin-top:16px">
           <button class="btn" id="ats-save" type="button">Save Task</button>
           <button class="btn btn-outline" id="ats-cancel" type="button">Cancel</button>
@@ -336,6 +440,8 @@ var Tasks = (() => {
 
     const textInput = document.getElementById('ats-text');
     if (textInput) { textInput.focus(); textInput.select(); }
+
+    const link = alreadyLinked ? null : wireLinkSection('ats', {});
 
     const close = () => modal.remove();
     document.getElementById('ats-close').addEventListener('click', close);
@@ -349,6 +455,22 @@ var Tasks = (() => {
       const urgent = (document.getElementById('ats-urgent') || {}).checked || false;
       if (!text.trim()) { App.toast('Enter a task description'); return; }
 
+      let obsId = prefill.observation_id || null;
+      let obsName = prefill.observation_name || null;
+      let lat = null, lng = null, noLocation = false;
+      if (link) {
+        const state = link.getState();
+        obsId = state.observation_id;
+        obsName = state.observation_name;
+        lat = state.lat;
+        lng = state.lng;
+        noLocation = state.no_location;
+        if (!obsId && !(lat && lng) && !noLocation) {
+          App.toast('Link this task to a plant, capture GPS, or mark it as a general task');
+          return;
+        }
+      }
+
       // Duplicate check — same text in same season
       const normalise = s => s.toLowerCase().replace(/\s+/g,' ').trim();
       const dup = _tasks.find(t =>
@@ -358,7 +480,7 @@ var Tasks = (() => {
         if (!confirm(`A very similar task already exists in ${seasonLabel(season)}:\n\n"${dup.text}"\n\nSave anyway?`)) return;
       }
 
-      await addTask(season, text, zone, urgent, prefill.observation_id || null, prefill.observation_name || null);
+      await addTask(season, text, zone, urgent, obsId, obsName, lat, lng, noLocation);
       close();
     });
   }
@@ -390,6 +512,7 @@ var Tasks = (() => {
   function cancelEdit() {
     const prev = _editingId;
     _editingId = null;
+    _editLinkCtl = null;
     if (prev) renderTask(prev);
   }
 
@@ -404,11 +527,21 @@ var Tasks = (() => {
 
     const zone   = zoneEl ? (zoneEl.value || null) : task.zone;
     const urgent = urgEl ? urgEl.checked : task.urgent;
+    const link   = _editLinkCtl ? _editLinkCtl.getState() : {
+      observation_id: task.observation_id, observation_name: task.observation_name,
+      lat: task.lat, lng: task.lng, no_location: task.no_location,
+    };
 
-    task.text   = text;
-    task.zone   = zone;
+    task.text = text;
+    task.zone = zone;
     task.urgent = urgent;
+    task.observation_id = link.observation_id;
+    task.observation_name = link.observation_name;
+    task.lat = link.lat;
+    task.lng = link.lng;
+    task.no_location = link.no_location;
     _editingId  = null;
+    _editLinkCtl = null;
     renderTask(taskId);
     updateSeasonProgress(task.season);
 
@@ -416,7 +549,11 @@ var Tasks = (() => {
       const res = await fetch(`${BACKEND}/tasks/${encodeURIComponent(taskId)}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json', ...authHeader() },
-        body: JSON.stringify({ text, zone: zone || null, urgent: urgent ? 1 : 0 }),
+        body: JSON.stringify({
+          text, zone: zone || null, urgent: urgent ? 1 : 0,
+          observation_id: link.observation_id || null, observation_name: link.observation_name || null,
+          lat: link.lat || null, lng: link.lng || null, no_location: !!link.no_location,
+        }),
       });
       if (!res.ok) throw new Error(res.status);
     } catch(e) {
@@ -662,38 +799,39 @@ var Tasks = (() => {
 
   function addTaskFormHTML(seasonId) {
     if (!_cloudMode) return '';
+    // Opens the shared Add Task sheet (openAddTaskSheet) rather than duplicating the
+    // text/zone/urgent fields here — that sheet is also where the required plant/GPS
+    // link or "general task" flag lives, so there's one place enforcing that rule.
     return `<div class="add-task-row" id="add-task-row-${seasonId}">
       <button class="btn btn-sm btn-outline add-task-btn" id="add-task-btn-${seasonId}" type="button" style="font-size:12px">+ Add task</button>
-      <div class="add-task-form" id="add-task-form-${seasonId}" style="display:none;margin-top:8px">
-        <input type="text" id="add-task-text-${seasonId}" placeholder="Task description…" style="width:100%;margin-bottom:6px">
-        <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:8px">
-          <select id="add-task-zone-${seasonId}" style="font-size:12px;max-width:150px">
-            <option value="">Any zone</option>
-            ${App.getZones().map(z => `<option value="${esc(z.id)}">Zone ${esc(z.id)} – ${esc(z.name)}</option>`).join('')}
-          </select>
-          <label style="font-size:12px;display:flex;align-items:center;gap:4px;cursor:pointer">
-            <input type="checkbox" id="add-task-urgent-${seasonId}"> Urgent
-          </label>
-        </div>
-        <div style="display:flex;gap:8px">
-          <button class="btn btn-sm" id="add-task-save-${seasonId}" type="button">Save</button>
-          <button class="btn btn-sm btn-outline" id="add-task-cancel-${seasonId}" type="button">Cancel</button>
-        </div>
-      </div>
     </div>`;
   }
 
   function taskItemHTML(task) {
     if (_editingId === task.id) return taskEditHTML(task);
     const done = task.completed;
-    const obsLink = task.observation_name
+    const hasObs = !!task.observation_name;
+    const hasGps = !!(task.lat && task.lng);
+    const obsLink = hasObs
       ? `<div class="task-obs-link" data-fly-obs="${task.observation_id || ''}" style="font-size:10px;color:var(--green);margin-top:1px;cursor:pointer;display:inline-flex;align-items:center;gap:3px">🔗 ${esc(task.observation_name)} <span style="opacity:0.6;font-size:9px">📍</span></div>`
+      : (hasGps
+        ? `<div class="task-obs-link" data-fly-coords="${esc(task.lat)},${esc(task.lng)}" style="font-size:10px;color:var(--green);margin-top:1px;cursor:pointer;display:inline-flex;align-items:center;gap:3px">📍 ${esc(task.lat)}, ${esc(task.lng)}</div>`
+        : '');
+    // Seeded checklist items (no created_at/lat/lng, no observation) predate this requirement
+    // and are intentionally general — only flag tasks added after that had no location option offered.
+    const unlinkedBadge = (!hasObs && !hasGps && !task.no_location && task.created_at)
+      ? `<span style="font-size:9px;color:var(--red);border:1px solid var(--red);border-radius:4px;padding:1px 4px;margin-left:4px" title="No linked plant or GPS location">⚠️ unlinked</span>`
+      : '';
+    const dateLabel = task.created_at
+      ? `<span style="color:var(--muted);font-size:10px"> · ${formatTaskDate(task.created_at)}</span>`
       : '';
     return `<div class="task-item" id="task-row-${task.id}" data-task-id="${task.id}">
       <div class="task-check ${done ? 'done' : ''}"></div>
       <div class="task-text ${done ? 'done' : ''} ${task.urgent && !done ? 'task-urgent' : ''}" style="flex:1">
         ${esc(task.text)}
         ${task.zone ? `<span style="color:var(--muted);font-size:10px"> · Zone ${esc(task.zone)}</span>` : ''}
+        ${dateLabel}
+        ${unlinkedBadge}
         ${obsLink}
       </div>
       ${_cloudMode ? `<button class="task-edit-btn" data-edit="${task.id}" type="button" title="Edit task" style="background:none;border:none;cursor:pointer;font-size:13px;padding:2px 5px;color:var(--muted)">✏️</button>` : ''}
@@ -714,7 +852,8 @@ var Tasks = (() => {
             <input type="checkbox" id="task-edit-urgent-${task.id}" ${task.urgent ? 'checked' : ''}> Urgent
           </label>
         </div>
-        <div style="display:flex;gap:8px">
+        ${linkSectionHTML(`task-edit-${task.id}`, { lat: task.lat, lng: task.lng, noLocation: task.no_location })}
+        <div style="display:flex;gap:8px;margin-top:12px">
           <button class="btn btn-sm" data-save-edit="${task.id}" type="button">Save</button>
           <button class="btn btn-sm btn-outline" data-cancel-edit="${task.id}" type="button">Cancel</button>
           <button class="btn btn-sm btn-outline" data-delete-task="${task.id}" type="button" style="color:#e53935;border-color:#e53935;margin-left:auto">Delete</button>
@@ -734,6 +873,12 @@ var Tasks = (() => {
     const newRow = tmp.firstElementChild;
     row.replaceWith(newRow);
     wireTaskEvents(newRow);
+    if (_editingId === taskId) {
+      _editLinkCtl = wireLinkSection(`task-edit-${taskId}`, {
+        lat: task.lat, lng: task.lng,
+        observationId: task.observation_id, observationName: task.observation_name,
+      });
+    }
   }
 
   function rerenderTask(taskId) {
@@ -774,11 +919,20 @@ var Tasks = (() => {
     const delBtn = row.querySelector('[data-delete-task]');
     if (delBtn) delBtn.addEventListener('click', e => { e.stopPropagation(); deleteTask(delBtn.dataset.deleteTask); });
     // Observation link → fly to plant pin on Map tab
-    const obsLink = row.querySelector('.task-obs-link');
+    const obsLink = row.querySelector('.task-obs-link[data-fly-obs]');
     if (obsLink) obsLink.addEventListener('click', e => {
       e.stopPropagation();
       const obsId = parseInt(obsLink.dataset.flyObs);
       if (obsId && window.PropertyMap && PropertyMap.flyToObs) PropertyMap.flyToObs(obsId);
+    });
+    // GPS-only link (no observation record) → fly to the raw coordinates
+    const coordsLink = row.querySelector('.task-obs-link[data-fly-coords]');
+    if (coordsLink) coordsLink.addEventListener('click', e => {
+      e.stopPropagation();
+      const [lat, lng] = (coordsLink.dataset.flyCoords || '').split(',').map(parseFloat);
+      if (!isNaN(lat) && !isNaN(lng) && window.PropertyMap && PropertyMap.flyToCoords) {
+        PropertyMap.flyToCoords(lat, lng);
+      }
     });
   }
 
@@ -805,36 +959,13 @@ var Tasks = (() => {
     const clearBtn = $(`season-clear-${seasonId}`);
     if (clearBtn) clearBtn.addEventListener('click', e => { e.stopPropagation(); clearSeason(seasonId); });
 
-    // Add task form
+    // Add task button → shared Add Task sheet (carries the plant/GPS link requirement)
     if (_cloudMode) {
-      const addBtn    = $(`add-task-btn-${seasonId}`);
-      const addForm   = $(`add-task-form-${seasonId}`);
-      const saveAddBtn   = $(`add-task-save-${seasonId}`);
-      const cancelAddBtn = $(`add-task-cancel-${seasonId}`);
-      if (addBtn && addForm) {
-        addBtn.addEventListener('click', e => {
-          e.stopPropagation();
-          addForm.style.display = addForm.style.display === 'none' ? '' : 'none';
-          if (addForm.style.display !== 'none') $(`add-task-text-${seasonId}`).focus();
-        });
-      }
-      if (saveAddBtn) {
-        saveAddBtn.addEventListener('click', e => {
-          e.stopPropagation();
-          const text   = ($(`add-task-text-${seasonId}`) || {}).value || '';
-          const zone   = ($(`add-task-zone-${seasonId}`) || {}).value || '';
-          const urgent = ($(`add-task-urgent-${seasonId}`) || {}).checked || false;
-          addTask(seasonId, text, zone, urgent).then(() => {
-            if (addForm) addForm.style.display = 'none';
-          });
-        });
-      }
-      if (cancelAddBtn) {
-        cancelAddBtn.addEventListener('click', e => {
-          e.stopPropagation();
-          if (addForm) addForm.style.display = 'none';
-        });
-      }
+      const addBtn = $(`add-task-btn-${seasonId}`);
+      if (addBtn) addBtn.addEventListener('click', e => {
+        e.stopPropagation();
+        openAddTaskSheet({ season: seasonId });
+      });
     }
   }
 
@@ -846,6 +977,13 @@ var Tasks = (() => {
     if (bar) bar.querySelector('.progress-fill').style.width = pct + '%';
     const cnt = $(`season-prog-count-${seasonId}`);
     if (cnt) cnt.textContent = `${done}/${tasks.length}`;
+  }
+
+  function formatTaskDate(iso) {
+    if (!iso) return '';
+    const d = new Date(iso);
+    if (isNaN(d.getTime())) return '';
+    return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
   }
 
   function esc(str) {

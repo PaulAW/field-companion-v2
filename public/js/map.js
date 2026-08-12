@@ -1210,11 +1210,13 @@ var PropertyMap = (() => {
     setTimeout(async () => {
       if (!_map) return;
       if (_initialized) _map.invalidateSize();
-      let obs = _allObs.find(o => o.id === obsId);
+      // Tasks may store either the local IndexedDB id or the cloud observation id
+      // (older links were saved inconsistently) — match against both.
+      let obs = _allObs.find(o => o.id === obsId || o.cloud_id === obsId);
       if (!obs) {
         try {
           const all = await App.getAllObservations();
-          obs = all.find(o => o.id === obsId);
+          obs = all.find(o => o.id === obsId || o.cloud_id === obsId);
           if (all.length) { _allObs = all; renderPins(); }
         } catch(e) {}
       }
@@ -1228,6 +1230,20 @@ var PropertyMap = (() => {
         } else {
           App.toast(`${obs.common_name} has no GPS pin`);
         }
+      }
+    }, 150);
+  }
+
+  /* Fly to raw GPS coordinates with no observation record — called from task GPS link */
+  function flyToCoords(lat, lng) {
+    App.switchTab('map');
+    setTimeout(() => {
+      if (!_map) return;
+      if (_initialized) _map.invalidateSize();
+      if (!isNaN(lat) && !isNaN(lng)) {
+        _map.closePopup();
+        _map.setView([lat, lng], 19);
+        App.toast(`📍 ${lat}, ${lng}`);
       }
     }, 150);
   }
@@ -1257,5 +1273,5 @@ var PropertyMap = (() => {
     }, 150);
   }
 
-  return { init, refreshIfVisible, reloadBoundaries, flyToZone, flyToObs };
+  return { init, refreshIfVisible, reloadBoundaries, flyToZone, flyToObs, flyToCoords };
 })();
