@@ -709,6 +709,55 @@ var PlantID = (() => {
     return `<div style="font-size:11px;color:var(--muted);margin:2px 0 6px">Confidence: ${esc(_lastPrevConfidence)} → <strong>${esc(confidence)}</strong></div>`;
   }
 
+  /* ── Claude vs PlantNet agreement check ──
+     Reduce a scientific name to its first two words (genus + species) for
+     comparison. Strips diacritics/punctuation and collapses whitespace so a
+     stray leading/double/non-breaking space, an author suffix, or a hybrid
+     "x" marker in either source's raw string doesn't shift the token split
+     and produce a false disagreement even when both names render identically. */
+  function normSci(s) {
+    return (s || '')
+      .toLowerCase()
+      .normalize('NFKD').replace(/[̀-ͯ]/g, '')
+      .replace(/[^a-z\s]/g, ' ')
+      .trim()
+      .split(/\s+/)
+      .filter(Boolean)
+      .slice(0, 2)
+      .join(' ');
+  }
+
+  function levenshteinDistance(a, b) {
+    const m = a.length, n = b.length;
+    if (m === 0) return n;
+    if (n === 0) return m;
+    let prev = Array.from({ length: n + 1 }, (_, j) => j);
+    for (let i = 1; i <= m; i++) {
+      const curr = [i];
+      for (let j = 1; j <= n; j++) {
+        curr[j] = a[i - 1] === b[j - 1]
+          ? prev[j - 1]
+          : 1 + Math.min(prev[j - 1], prev[j], curr[j - 1]);
+      }
+      prev = curr;
+    }
+    return prev[n];
+  }
+
+  /* PlantNet's species names come from crowd-sourced observation data and
+     regularly contain typos (e.g. "gerardii" -> "gerardi") — a single
+     dropped/doubled letter, not a different species. Tolerate small edit
+     distances (relative to name length) as agreement so those don't read as
+     a real disagreement; two genuinely different species names differ by
+     far more than this. */
+  function sciNamesMatch(a, b) {
+    if (!a || !b) return false;
+    if (a === b) return true;
+    const dist = levenshteinDistance(a, b);
+    const maxLen = Math.max(a.length, b.length);
+    return dist <= 2 && dist / maxLen <= 0.25;
+  }
+
   function showResult(result, zone, notes) {
     showSpinner(false);
     const threshold = App.getConfidenceThreshold();
@@ -728,24 +777,15 @@ var PlantID = (() => {
     const isKeystone = result.keystone ? '<span class="badge badge-keystone">⭐ Keystone</span>' : '';
     const usedPlantNet = !!(  _plantNetCandidates && _plantNetCandidates.length);
     const pnTop = usedPlantNet ? _plantNetCandidates[0] : null;
-    // Detect disagreement: compare first two words of scientific name (genus +
-    // species). Strip diacritics/punctuation and collapse whitespace before
-    // splitting — a stray leading/double/non-breaking space or hybrid "×"
-    // marker in either source's raw string otherwise shifts the token split
-    // (e.g. an empty leading token bumps the species out of slice(0,2)) and
-    // flags a false disagreement even when both names render identically.
-    const normSci = s => (s || '')
-      .toLowerCase()
-      .normalize('NFKD').replace(/[̀-ͯ]/g, '')
-      .replace(/[^a-z\s]/g, ' ')
-      .trim()
-      .split(/\s+/)
-      .filter(Boolean)
-      .slice(0, 2)
-      .join(' ');
-    const claudeSci = normSci(result.latin_name);
-    const pnSci     = pnTop ? normSci(pnTop.scientificName) : '';
-    const disagrees = pnTop && claudeSci && pnSci && claudeSci !== pnSci;
+    // Disagreement check: compare against ALL of PlantNet's top-3 candidates,
+    // not just #1 — PlantNet's top result is sometimes a misspelling of the
+    // same species that a lower-ranked candidate spells correctly, and that
+    // should read as agreement too, not a false alarm off the #1 slot alone.
+    const claudeSci   = normSci(result.latin_name);
+    const pnTopSci     = pnTop ? normSci(pnTop.scientificName) : '';
+    const matchesSomeCandidate = usedPlantNet && claudeSci &&
+      _plantNetCandidates.some(c => sciNamesMatch(claudeSci, normSci(c.scientificName)));
+    const disagrees = pnTop && claudeSci && pnTopSci && !matchesSomeCandidate;
     const sourceLabel = usedPlantNet
       ? `<div style="font-size:10px;color:var(--muted);margin-bottom:4px">🤖 Claude AI &nbsp;·&nbsp; 🌿 PlantNet suggested: <em>${esc(pnTop.scientificName)}</em> (${pnTop.score}%)${disagrees ? `&nbsp;<span style="color:#e65100;font-weight:600" title="Claude and PlantNet identified different species — use your judgment">⚠️ IDs differ</span>` : ''}</div>`
       : `<div style="font-size:10px;color:var(--muted);margin-bottom:4px">🤖 Claude AI only (no PlantNet key)</div>`;
