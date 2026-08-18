@@ -47,15 +47,14 @@
         <!-- Photo upload -->
         <div class="field">
           <div id="pid-photo-buttons" style="display:flex;gap:8px">
-            <label class="btn btn-outline btn-sm" style="flex:1;text-align:center;cursor:pointer">
-              📷 Camera
-              <input type="file" id="pid-camera-input" accept="image/*" capture="environment" style="display:none">
-            </label>
+            <button type="button" class="btn btn-outline btn-sm" id="pid-camera-btn" style="flex:1">📷 Camera</button>
             <label class="btn btn-outline btn-sm" style="flex:1;text-align:center;cursor:pointer">
               🖼️ Gallery / Files
               <input type="file" id="pid-gallery-input" accept="image/*" style="display:none">
             </label>
           </div>
+          <!-- Fallback for browsers without getUserMedia support — CameraCapture opens this if the in-page camera can't start -->
+          <input type="file" id="pid-camera-input" accept="image/*" capture="environment" style="display:none">
           <img id="pid-photo-preview" class="photo-preview" alt="Selected plant photo" style="display:none;margin-top:8px">
           <p id="pid-upload-hint" style="display:none"></p>
         </div>
@@ -514,10 +513,24 @@
   </div>
 </div>
 
+<!-- ════ CAMERA CAPTURE MODAL ════ -->
+<div id="camera-capture-modal" style="display:none;position:fixed;inset:0;z-index:250;flex-direction:column;background:#000;">
+  <div style="padding:10px 14px;display:flex;align-items:center;justify-content:flex-end;flex-shrink:0">
+    <button id="camera-capture-cancel" type="button" style="background:none;border:none;color:#fff;font-size:14px;cursor:pointer;padding:4px 8px">✕ Cancel</button>
+  </div>
+  <div style="position:relative;flex:1;overflow:hidden;display:flex;align-items:center;justify-content:center">
+    <video id="camera-capture-video" autoplay playsinline muted style="width:100%;height:100%;object-fit:contain;background:#000"></video>
+  </div>
+  <div style="padding:16px 14px 24px;display:flex;justify-content:center;flex-shrink:0">
+    <button id="camera-capture-shutter" type="button" aria-label="Take photo" style="width:68px;height:68px;border-radius:50%;background:#fff;border:4px solid rgba(255,255,255,.4);cursor:pointer"></button>
+  </div>
+</div>
+
 <!-- ── Scripts ── -->
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 <script src="https://unpkg.com/leaflet.markercluster@1.5.3/dist/leaflet.markercluster.js"></script>
 <script src="https://unpkg.com/leaflet-draw@1.0.4/dist/leaflet.draw.js"></script>
+<script src="js/camera-capture.js"></script>
 <script src="js/map-picker.js"></script>
 <script src="js/map.js"></script>
 <script src="js/app.js"></script>

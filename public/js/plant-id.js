@@ -94,9 +94,13 @@ var PlantID = (() => {
         p.classList.toggle('selected', p.dataset.organ === _selectedOrgan);
       });
     }
-    if (_gpsCoords) setGPSCoords(_gpsCoords);
     if (data.zone && $('pid-zone'))   $('pid-zone').value  = data.zone;
     if (data.notes && $('pid-notes')) $('pid-notes').value = data.notes;
+    // Restore zone/notes to the DOM before GPS: setGPSCoords() below calls
+    // persistSession(), which re-reads pid-zone/pid-notes live — if GPS were
+    // restored first, that write would clobber the just-loaded zone/notes
+    // back to blank in sessionStorage.
+    if (_gpsCoords) setGPSCoords(_gpsCoords);
 
     updateIdentifyBtn();
 
@@ -181,25 +185,66 @@ var PlantID = (() => {
   }
 
   /* ── Photo input ── */
+
+  /* Compress + adopt a captured/selected photo as the primary photo. Shared
+     by both the file-input flow (camera-app fallback, gallery picks) and the
+     in-page live camera (CameraCapture), which hand this a data URL either way. */
+  async function processPhotoDataUrl(dataUrl) {
+    try {
+      const compressed = await compressImage(dataUrl, 2000, 0.95);
+      _photoBase64 = compressed.split(',')[1];
+      _photoType   = 'image/jpeg';
+      const preview = $('pid-photo-preview');
+      preview.src  = compressed;
+      preview.style.display = 'block';
+      // Show organ selector — reset any previous selection
+      resetOrganSelect();
+      const organSection = $('pid-organ-section');
+      if (organSection) organSection.style.display = 'block';
+      updateIdentifyBtn();
+      persistSession();
+    } catch (err) {
+      App.toast('Could not process that photo — please try again');
+    }
+  }
+
+  /* Compress + queue a re-identification photo. Shared by both supplemental
+     photo flows (normal result, low-confidence result) x (camera, gallery). */
+  async function addSupplementalPhoto(dataUrl, organ) {
+    try {
+      const compressed = await compressImage(dataUrl, 2000, 0.95);
+      _supplementalPhotos.push({ data: compressed.split(',')[1], type: 'image/jpeg' });
+      _supplementalOrgans.push(organ);
+      persistSession();
+      App.toast(`Photo added — re-analyzing with ${1 + _supplementalPhotos.length} photos…`);
+      await reIdentify();
+    } catch (err) {
+      App.toast('Could not process that photo — please try again');
+    }
+  }
+
+  /* Prefer the in-page live camera (stays on this page — an Android OS kill
+     of a separate camera-app activity can never lose the photo). Falls back
+     to the native camera-app file input when getUserMedia isn't available. */
+  function openCamera(onCapture, fallbackInput) {
+    if (window.CameraCapture && CameraCapture.isSupported()) {
+      CameraCapture.open(onCapture, () => { if (fallbackInput) fallbackInput.click(); });
+    } else if (fallbackInput) {
+      fallbackInput.click();
+    }
+  }
+
   function setupPhotoInput() {
     async function handleFile(e) {
       const file = e.target.files[0];
-      if (!file) return;
+      // Camera intents on Android occasionally return here with an empty
+      // file list (e.g. the tab was reloaded by the OS while the camera
+      // app was open) — fail loudly instead of silently doing nothing, so
+      // it doesn't read as the tap not registering.
+      if (!file) { App.toast('Photo didn\'t come through — please try again'); return; }
       const reader = new FileReader();
-      reader.onload = async ev => {
-        const compressed = await compressImage(ev.target.result, 2000, 0.95);
-        _photoBase64 = compressed.split(',')[1];
-        _photoType   = 'image/jpeg';
-        const preview = $('pid-photo-preview');
-        preview.src  = compressed;
-        preview.style.display = 'block';
-        // Show organ selector — reset any previous selection
-        resetOrganSelect();
-        const organSection = $('pid-organ-section');
-        if (organSection) organSection.style.display = 'block';
-        updateIdentifyBtn();
-        persistSession();
-      };
+      reader.onerror = () => App.toast('Could not read that photo — please try again');
+      reader.onload = ev => processPhotoDataUrl(ev.target.result);
       reader.readAsDataURL(file);
     }
 
@@ -207,6 +252,9 @@ var PlantID = (() => {
     const gal = $('pid-gallery-input');
     if (cam) cam.addEventListener('change', handleFile);
     if (gal) gal.addEventListener('change', handleFile);
+
+    const camBtn = $('pid-camera-btn');
+    if (camBtn) camBtn.addEventListener('click', () => openCamera(processPhotoDataUrl, cam));
   }
 
   /* ── GPS ── */
@@ -731,10 +779,8 @@ var PlantID = (() => {
             <button type="button" class="organ-pill" data-organ="habit">🌿 Habit</button>
             <button type="button" class="organ-pill" data-organ="other">❓ Other</button>
           </div>
-          <label class="btn btn-outline" id="pid-normal-supp-label" style="width:100%;text-align:center;cursor:pointer;box-sizing:border-box;display:block;opacity:0.5;pointer-events:none">
-            📷 Add photo to improve ID
-            <input type="file" id="pid-normal-supp-input" accept="image/*" capture="environment" style="display:none">
-          </label>
+          <button type="button" class="btn btn-outline" id="pid-normal-supp-btn" style="width:100%;box-sizing:border-box;opacity:0.5;pointer-events:none">📷 Add photo to improve ID</button>
+          <input type="file" id="pid-normal-supp-input" accept="image/*" capture="environment" style="display:none">
           <div style="font-size:10px;color:var(--muted);margin-top:4px">Select a plant part above to enable</div>
         </div>
         <div style="margin-top:10px">
@@ -799,28 +845,32 @@ var PlantID = (() => {
         normalPills.forEach(p => p.classList.remove('selected'));
         pill.classList.add('selected');
         _normalSuppOrgan = pill.dataset.organ;
-        const label = $('pid-normal-supp-label');
-        if (label) { label.style.opacity = '1'; label.style.pointerEvents = 'auto'; }
+        const btn = $('pid-normal-supp-btn');
+        if (btn) { btn.style.opacity = '1'; btn.style.pointerEvents = 'auto'; }
       });
     });
     $('pid-normal-supp-input').addEventListener('change', async e => {
       const file = e.target.files[0];
-      if (!file) return;
+      if (!file) { App.toast('Photo didn\'t come through — please try again'); return; }
       if (!_normalSuppOrgan) {
         App.toast('Please select which part of the plant you photographed first');
         return;
       }
       const reader = new FileReader();
-      reader.onload = async ev => {
-        const compressed = await compressImage(ev.target.result, 2000, 0.95);
-        _supplementalPhotos.push({ data: compressed.split(',')[1], type: 'image/jpeg' });
-        _supplementalOrgans.push(_normalSuppOrgan);
-        persistSession();
-        App.toast(`Photo added — re-analyzing with ${1 + _supplementalPhotos.length} photos…`);
-        await reIdentify();
-      };
+      reader.onerror = () => App.toast('Could not read that photo — please try again');
+      reader.onload = ev => addSupplementalPhoto(ev.target.result, _normalSuppOrgan);
       reader.readAsDataURL(file);
     });
+    const normalSuppBtn = $('pid-normal-supp-btn');
+    if (normalSuppBtn) {
+      normalSuppBtn.addEventListener('click', () => {
+        if (!_normalSuppOrgan) {
+          App.toast('Please select which part of the plant you photographed first');
+          return;
+        }
+        openCamera(dataUrl => addSupplementalPhoto(dataUrl, _normalSuppOrgan), $('pid-normal-supp-input'));
+      });
+    }
   }
 
   function showLowConfidenceResult(result, zone, notes) {
@@ -862,10 +912,8 @@ var PlantID = (() => {
           <button type="button" class="organ-pill" data-organ="habit">🌿 Habit</button>
           <button type="button" class="organ-pill" data-organ="other">❓ Other</button>
         </div>
-        <label class="btn btn-amber" style="cursor:pointer;opacity:0.5;pointer-events:none" id="pid-supp-photo-label">
-          📷 Add photo to improve ID
-          <input type="file" id="pid-supplemental-input" accept="image/*" capture="environment" style="display:none">
-        </label>
+        <button type="button" class="btn btn-amber" style="opacity:0.5;pointer-events:none" id="pid-supp-photo-btn">📷 Add photo to improve ID</button>
+        <input type="file" id="pid-supplemental-input" accept="image/*" capture="environment" style="display:none">
         <div style="font-size:10px;color:var(--muted)">Select a plant part above to enable</div>
         <button class="btn btn-outline" id="pid-save-anyway">Save anyway (low confidence)</button>
         <button class="btn btn-outline" id="pid-lc-save-gallery">🖼️ Save photo to gallery</button>
@@ -881,29 +929,33 @@ var PlantID = (() => {
         pill.classList.add('selected');
         _suppOrganSelected = pill.dataset.organ;
         // Enable photo button once organ is picked
-        const photoLabel = $('pid-supp-photo-label');
-        if (photoLabel) { photoLabel.style.opacity = '1'; photoLabel.style.pointerEvents = 'auto'; }
+        const photoBtn = $('pid-supp-photo-btn');
+        if (photoBtn) { photoBtn.style.opacity = '1'; photoBtn.style.pointerEvents = 'auto'; }
       });
     });
 
     $('pid-supplemental-input').addEventListener('change', async e => {
       const file = e.target.files[0];
-      if (!file) return;
+      if (!file) { App.toast('Photo didn\'t come through — please try again'); return; }
       if (!_suppOrganSelected) {
         App.toast('Please select which part of the plant you photographed first');
         return;
       }
       const reader = new FileReader();
-      reader.onload = async ev => {
-        const compressed = await compressImage(ev.target.result, 2000, 0.95);
-        _supplementalPhotos.push({ data: compressed.split(',')[1], type: 'image/jpeg' });
-        _supplementalOrgans.push(_suppOrganSelected);
-        persistSession();
-        App.toast(`Photo added — re-analyzing with ${1 + _supplementalPhotos.length} photos…`);
-        await reIdentify();
-      };
+      reader.onerror = () => App.toast('Could not read that photo — please try again');
+      reader.onload = ev => addSupplementalPhoto(ev.target.result, _suppOrganSelected);
       reader.readAsDataURL(file);
     });
+    const suppPhotoBtn = $('pid-supp-photo-btn');
+    if (suppPhotoBtn) {
+      suppPhotoBtn.addEventListener('click', () => {
+        if (!_suppOrganSelected) {
+          App.toast('Please select which part of the plant you photographed first');
+          return;
+        }
+        openCamera(dataUrl => addSupplementalPhoto(dataUrl, _suppOrganSelected), $('pid-supplemental-input'));
+      });
+    }
 
     $('pid-save-anyway').addEventListener('click', () => showNormalResult(result, zone, notes));
     $('pid-lc-save-gallery').addEventListener('click', () => saveToGallery(result));
