@@ -728,8 +728,21 @@ var PlantID = (() => {
     const isKeystone = result.keystone ? '<span class="badge badge-keystone">⭐ Keystone</span>' : '';
     const usedPlantNet = !!(  _plantNetCandidates && _plantNetCandidates.length);
     const pnTop = usedPlantNet ? _plantNetCandidates[0] : null;
-    // Detect disagreement: compare first two words of scientific name (genus + species)
-    const normSci = s => (s || '').toLowerCase().split(' ').slice(0, 2).join(' ').trim();
+    // Detect disagreement: compare first two words of scientific name (genus +
+    // species). Strip diacritics/punctuation and collapse whitespace before
+    // splitting — a stray leading/double/non-breaking space or hybrid "×"
+    // marker in either source's raw string otherwise shifts the token split
+    // (e.g. an empty leading token bumps the species out of slice(0,2)) and
+    // flags a false disagreement even when both names render identically.
+    const normSci = s => (s || '')
+      .toLowerCase()
+      .normalize('NFKD').replace(/[̀-ͯ]/g, '')
+      .replace(/[^a-z\s]/g, ' ')
+      .trim()
+      .split(/\s+/)
+      .filter(Boolean)
+      .slice(0, 2)
+      .join(' ');
     const claudeSci = normSci(result.latin_name);
     const pnSci     = pnTop ? normSci(pnTop.scientificName) : '';
     const disagrees = pnTop && claudeSci && pnSci && claudeSci !== pnSci;
