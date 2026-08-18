@@ -208,19 +208,28 @@ var PlantID = (() => {
     }
   }
 
-  /* Compress + queue a re-identification photo. Shared by both supplemental
-     photo flows (normal result, low-confidence result) x (camera, gallery). */
-  async function addSupplementalPhoto(dataUrl, organ) {
+  /* Compress a supplemental photo. Separate from finalizing it, so the photo
+     can be captured before its plant part is chosen — you don't know what
+     part a photo shows until you've taken it, so the app shouldn't ask you
+     to declare that up front. Shared by both supplemental photo flows
+     (normal result, low-confidence result) x (camera, gallery). */
+  async function compressSupplementalPhoto(dataUrl) {
     try {
       const compressed = await compressImage(dataUrl, 2000, 0.95);
-      _supplementalPhotos.push({ data: compressed.split(',')[1], type: 'image/jpeg' });
-      _supplementalOrgans.push(organ);
-      persistSession();
-      App.toast(`Photo added — re-analyzing with ${1 + _supplementalPhotos.length} photos…`);
-      await reIdentify();
+      return compressed.split(',')[1];
     } catch (err) {
       App.toast('Could not process that photo — please try again');
+      return null;
     }
+  }
+
+  /* Queue a compressed supplemental photo + its plant part and re-identify. */
+  async function finalizeSupplementalPhoto(base64, organ) {
+    _supplementalPhotos.push({ data: base64, type: 'image/jpeg' });
+    _supplementalOrgans.push(organ);
+    persistSession();
+    App.toast(`Photo added — re-analyzing with ${1 + _supplementalPhotos.length} photos…`);
+    await reIdentify();
   }
 
   /* Prefer the in-page live camera (stays on this page — an Android OS kill
@@ -771,17 +780,19 @@ var PlantID = (() => {
         </div>
         <div style="margin-top:14px;padding-top:12px;border-top:1px solid var(--border)">
           <div style="font-size:11px;color:var(--muted);margin-bottom:6px">Not confident? Add another photo to sharpen the ID:</div>
-          <div class="organ-pills" id="pid-normal-supp-organ-pills" style="margin-bottom:8px">
-            <button type="button" class="organ-pill" data-organ="leaf">🍃 Leaf</button>
-            <button type="button" class="organ-pill" data-organ="flower">🌸 Flower</button>
-            <button type="button" class="organ-pill" data-organ="fruit">🍇 Fruit</button>
-            <button type="button" class="organ-pill" data-organ="bark">🌳 Bark</button>
-            <button type="button" class="organ-pill" data-organ="habit">🌿 Habit</button>
-            <button type="button" class="organ-pill" data-organ="other">❓ Other</button>
-          </div>
-          <button type="button" class="btn btn-outline" id="pid-normal-supp-btn" style="width:100%;box-sizing:border-box;opacity:0.5">📷 Add photo to improve ID</button>
+          <button type="button" class="btn btn-outline" id="pid-normal-supp-btn" style="width:100%;box-sizing:border-box;margin-bottom:8px">📷 Add photo to improve ID</button>
           <input type="file" id="pid-normal-supp-input" accept="image/*" capture="environment" style="display:none">
-          <div style="font-size:10px;color:var(--muted);margin-top:4px">Select a plant part above to enable</div>
+          <div id="pid-normal-supp-organ-wrap" style="display:none">
+            <div style="font-size:11px;color:var(--muted);margin-bottom:6px">What part does this new photo show?</div>
+            <div class="organ-pills" id="pid-normal-supp-organ-pills">
+              <button type="button" class="organ-pill" data-organ="leaf">🍃 Leaf</button>
+              <button type="button" class="organ-pill" data-organ="flower">🌸 Flower</button>
+              <button type="button" class="organ-pill" data-organ="fruit">🍇 Fruit</button>
+              <button type="button" class="organ-pill" data-organ="bark">🌳 Bark</button>
+              <button type="button" class="organ-pill" data-organ="habit">🌿 Habit</button>
+              <button type="button" class="organ-pill" data-organ="other">❓ Other</button>
+            </div>
+          </div>
         </div>
         <div style="margin-top:10px">
           <button class="btn btn-outline" id="pid-new-plant" style="width:100%">🔄 New plant</button>
@@ -837,39 +848,50 @@ var PlantID = (() => {
       });
     }
 
-    // Supplemental photo from normal result
-    let _normalSuppOrgan = null;
+    // Supplemental photo from normal result — capture the photo first, then
+    // ask which plant part it shows (you can't know that until you've taken
+    // it); finalizes as soon as both a photo and an organ are in hand,
+    // whichever comes second.
+    let _normalSuppOrgan       = null;
+    let _normalSuppPendingB64  = null;
     const normalPills = document.querySelectorAll('#pid-normal-supp-organ-pills .organ-pill');
     normalPills.forEach(pill => {
       pill.addEventListener('click', () => {
         normalPills.forEach(p => p.classList.remove('selected'));
         pill.classList.add('selected');
         _normalSuppOrgan = pill.dataset.organ;
-        const btn = $('pid-normal-supp-btn');
-        if (btn) btn.style.opacity = '1';
+        if (_normalSuppPendingB64) {
+          const photo = _normalSuppPendingB64;
+          _normalSuppPendingB64 = null;
+          finalizeSupplementalPhoto(photo, _normalSuppOrgan);
+        }
       });
     });
-    $('pid-normal-supp-input').addEventListener('change', async e => {
+
+    async function handleNormalSuppPhoto(dataUrl) {
+      const base64 = await compressSupplementalPhoto(dataUrl);
+      if (!base64) return;
+      if (_normalSuppOrgan) {
+        finalizeSupplementalPhoto(base64, _normalSuppOrgan);
+      } else {
+        _normalSuppPendingB64 = base64;
+        const wrap = $('pid-normal-supp-organ-wrap');
+        if (wrap) wrap.style.display = 'block';
+        App.toast('Got it — now tap which part of the plant it shows');
+      }
+    }
+
+    $('pid-normal-supp-input').addEventListener('change', e => {
       const file = e.target.files[0];
       if (!file) { App.toast('Photo didn\'t come through — please try again'); return; }
-      if (!_normalSuppOrgan) {
-        App.toast('Please select which part of the plant you photographed first');
-        return;
-      }
       const reader = new FileReader();
       reader.onerror = () => App.toast('Could not read that photo — please try again');
-      reader.onload = ev => addSupplementalPhoto(ev.target.result, _normalSuppOrgan);
+      reader.onload = ev => handleNormalSuppPhoto(ev.target.result);
       reader.readAsDataURL(file);
     });
     const normalSuppBtn = $('pid-normal-supp-btn');
     if (normalSuppBtn) {
-      normalSuppBtn.addEventListener('click', () => {
-        if (!_normalSuppOrgan) {
-          App.toast('Please select which part of the plant you photographed first');
-          return;
-        }
-        openCamera(dataUrl => addSupplementalPhoto(dataUrl, _normalSuppOrgan), $('pid-normal-supp-input'));
-      });
+      normalSuppBtn.addEventListener('click', () => openCamera(handleNormalSuppPhoto, $('pid-normal-supp-input')));
     }
   }
 
@@ -903,58 +925,66 @@ var PlantID = (() => {
       </div>
       <div style="display:flex;flex-direction:column;gap:8px;margin-top:4px">
         <div style="font-size:12px;color:var(--label);font-weight:600;margin-bottom:2px">Add another photo to improve ID:</div>
-        <div style="font-size:11px;color:var(--muted);margin-bottom:2px">What part will you photograph?</div>
-        <div class="organ-pills" id="pid-supp-organ-pills">
-          <button type="button" class="organ-pill" data-organ="leaf">🍃 Leaf</button>
-          <button type="button" class="organ-pill" data-organ="flower">🌸 Flower</button>
-          <button type="button" class="organ-pill" data-organ="fruit">🍇 Fruit</button>
-          <button type="button" class="organ-pill" data-organ="bark">🌳 Bark</button>
-          <button type="button" class="organ-pill" data-organ="habit">🌿 Habit</button>
-          <button type="button" class="organ-pill" data-organ="other">❓ Other</button>
-        </div>
-        <button type="button" class="btn btn-amber" style="opacity:0.5" id="pid-supp-photo-btn">📷 Add photo to improve ID</button>
+        <button type="button" class="btn btn-amber" id="pid-supp-photo-btn">📷 Add photo to improve ID</button>
         <input type="file" id="pid-supplemental-input" accept="image/*" capture="environment" style="display:none">
-        <div style="font-size:10px;color:var(--muted)">Select a plant part above to enable</div>
+        <div id="pid-supp-organ-wrap" style="display:none">
+          <div style="font-size:11px;color:var(--muted);margin-bottom:2px">What part does this new photo show?</div>
+          <div class="organ-pills" id="pid-supp-organ-pills">
+            <button type="button" class="organ-pill" data-organ="leaf">🍃 Leaf</button>
+            <button type="button" class="organ-pill" data-organ="flower">🌸 Flower</button>
+            <button type="button" class="organ-pill" data-organ="fruit">🍇 Fruit</button>
+            <button type="button" class="organ-pill" data-organ="bark">🌳 Bark</button>
+            <button type="button" class="organ-pill" data-organ="habit">🌿 Habit</button>
+            <button type="button" class="organ-pill" data-organ="other">❓ Other</button>
+          </div>
+        </div>
         <button class="btn btn-outline" id="pid-save-anyway">Save anyway (low confidence)</button>
         <button class="btn btn-outline" id="pid-lc-save-gallery">🖼️ Save photo to gallery</button>
         <button class="btn btn-outline" id="pid-low-conf-new-plant">🔄 New plant</button>
       </div>`;
 
-    // Wire up supplemental organ pills
+    // Wire up supplemental organ pills — same capture-first, organ-second
+    // order as the normal result card (see showNormalResult).
     let _suppOrganSelected = null;
+    let _suppPendingB64    = null;
     const suppPills = document.querySelectorAll('#pid-supp-organ-pills .organ-pill');
     suppPills.forEach(pill => {
       pill.addEventListener('click', () => {
         suppPills.forEach(p => p.classList.remove('selected'));
         pill.classList.add('selected');
         _suppOrganSelected = pill.dataset.organ;
-        // Enable photo button once organ is picked
-        const photoBtn = $('pid-supp-photo-btn');
-        if (photoBtn) photoBtn.style.opacity = '1';
+        if (_suppPendingB64) {
+          const photo = _suppPendingB64;
+          _suppPendingB64 = null;
+          finalizeSupplementalPhoto(photo, _suppOrganSelected);
+        }
       });
     });
 
-    $('pid-supplemental-input').addEventListener('change', async e => {
+    async function handleSuppPhoto(dataUrl) {
+      const base64 = await compressSupplementalPhoto(dataUrl);
+      if (!base64) return;
+      if (_suppOrganSelected) {
+        finalizeSupplementalPhoto(base64, _suppOrganSelected);
+      } else {
+        _suppPendingB64 = base64;
+        const wrap = $('pid-supp-organ-wrap');
+        if (wrap) wrap.style.display = 'block';
+        App.toast('Got it — now tap which part of the plant it shows');
+      }
+    }
+
+    $('pid-supplemental-input').addEventListener('change', e => {
       const file = e.target.files[0];
       if (!file) { App.toast('Photo didn\'t come through — please try again'); return; }
-      if (!_suppOrganSelected) {
-        App.toast('Please select which part of the plant you photographed first');
-        return;
-      }
       const reader = new FileReader();
       reader.onerror = () => App.toast('Could not read that photo — please try again');
-      reader.onload = ev => addSupplementalPhoto(ev.target.result, _suppOrganSelected);
+      reader.onload = ev => handleSuppPhoto(ev.target.result);
       reader.readAsDataURL(file);
     });
     const suppPhotoBtn = $('pid-supp-photo-btn');
     if (suppPhotoBtn) {
-      suppPhotoBtn.addEventListener('click', () => {
-        if (!_suppOrganSelected) {
-          App.toast('Please select which part of the plant you photographed first');
-          return;
-        }
-        openCamera(dataUrl => addSupplementalPhoto(dataUrl, _suppOrganSelected), $('pid-supplemental-input'));
-      });
+      suppPhotoBtn.addEventListener('click', () => openCamera(handleSuppPhoto, $('pid-supplemental-input')));
     }
 
     $('pid-save-anyway').addEventListener('click', () => showNormalResult(result, zone, notes));
