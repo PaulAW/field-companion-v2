@@ -779,7 +779,7 @@ var PlantID = (() => {
             <button type="button" class="organ-pill" data-organ="habit">🌿 Habit</button>
             <button type="button" class="organ-pill" data-organ="other">❓ Other</button>
           </div>
-          <button type="button" class="btn btn-outline" id="pid-normal-supp-btn" style="width:100%;box-sizing:border-box;opacity:0.5;pointer-events:none">📷 Add photo to improve ID</button>
+          <button type="button" class="btn btn-outline" id="pid-normal-supp-btn" style="width:100%;box-sizing:border-box;opacity:0.5">📷 Add photo to improve ID</button>
           <input type="file" id="pid-normal-supp-input" accept="image/*" capture="environment" style="display:none">
           <div style="font-size:10px;color:var(--muted);margin-top:4px">Select a plant part above to enable</div>
         </div>
@@ -846,7 +846,7 @@ var PlantID = (() => {
         pill.classList.add('selected');
         _normalSuppOrgan = pill.dataset.organ;
         const btn = $('pid-normal-supp-btn');
-        if (btn) { btn.style.opacity = '1'; btn.style.pointerEvents = 'auto'; }
+        if (btn) btn.style.opacity = '1';
       });
     });
     $('pid-normal-supp-input').addEventListener('change', async e => {
@@ -912,7 +912,7 @@ var PlantID = (() => {
           <button type="button" class="organ-pill" data-organ="habit">🌿 Habit</button>
           <button type="button" class="organ-pill" data-organ="other">❓ Other</button>
         </div>
-        <button type="button" class="btn btn-amber" style="opacity:0.5;pointer-events:none" id="pid-supp-photo-btn">📷 Add photo to improve ID</button>
+        <button type="button" class="btn btn-amber" style="opacity:0.5" id="pid-supp-photo-btn">📷 Add photo to improve ID</button>
         <input type="file" id="pid-supplemental-input" accept="image/*" capture="environment" style="display:none">
         <div style="font-size:10px;color:var(--muted)">Select a plant part above to enable</div>
         <button class="btn btn-outline" id="pid-save-anyway">Save anyway (low confidence)</button>
@@ -930,7 +930,7 @@ var PlantID = (() => {
         _suppOrganSelected = pill.dataset.organ;
         // Enable photo button once organ is picked
         const photoBtn = $('pid-supp-photo-btn');
-        if (photoBtn) { photoBtn.style.opacity = '1'; photoBtn.style.pointerEvents = 'auto'; }
+        if (photoBtn) photoBtn.style.opacity = '1';
       });
     });
 
