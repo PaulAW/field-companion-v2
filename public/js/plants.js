@@ -145,6 +145,15 @@ var Plants = (() => {
         if (obs && window.Logger && Logger.editObservation) Logger.editObservation(obs);
       });
     });
+
+    // Wire "View on map" buttons — highlight every pin for that species
+    container.querySelectorAll('[data-view-map]').forEach(btn => {
+      btn.addEventListener('click', e => {
+        e.stopPropagation();
+        const name = btn.dataset.viewMap;
+        if (window.PropertyMap && PropertyMap.flyToSpecies) PropertyMap.flyToSpecies(name);
+      });
+    });
   }
 
   function speciesCardHTML(s) {
@@ -179,6 +188,7 @@ var Plants = (() => {
             ${zones ? ' · Zones ' + esc(zones) : ''}
             ${last ? ' · Last ' + esc(last) : ''}
           </div>
+          <button class="btn btn-sm btn-outline" data-view-map="${esc(key)}" style="font-size:10px;padding:2px 7px;margin-top:6px">📍 View on map</button>
         </div>
         <span class="plants-chevron" style="color:var(--muted);font-size:14px;flex-shrink:0;padding-top:2px">${isOpen ? '▾' : '▸'}</span>
       </div>

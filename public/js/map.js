@@ -1273,5 +1273,36 @@ var PropertyMap = (() => {
     }, 150);
   }
 
-  return { init, refreshIfVisible, reloadBoundaries, flyToZone, flyToObs, flyToCoords };
+  /* Fly to + highlight every pin for a given species (by common_name) —
+     called from the Plants tab's "View on map" button. Reuses the same
+     highlightObs() used by the map's own "Find a plant" search. */
+  async function flyToSpecies(commonName) {
+    App.switchTab('map');
+    setTimeout(async () => {
+      if (!_map) return;
+      if (_initialized) _map.invalidateSize();
+      let matches = _allObs.filter(o => !o.removed && (o.common_name || '').trim() === commonName);
+      if (!matches.length) {
+        try {
+          const all = await App.getAllObservations();
+          if (all.length) { _allObs = all; renderPins(); }
+          matches = _allObs.filter(o => !o.removed && (o.common_name || '').trim() === commonName);
+        } catch(e) {}
+      }
+      const hasGps = o => {
+        const lat = parseFloat(o.lat || o.latitude), lng = parseFloat(o.lng || o.longitude);
+        return !!(lat && lng && !isNaN(lat) && !isNaN(lng));
+      };
+      const withGps = matches.filter(hasGps);
+      if (!withGps.length) {
+        App.toast(matches.length ? `${commonName}: no GPS pins to show` : `No observations found for ${commonName}`);
+        return;
+      }
+      _map.closePopup();
+      highlightObs(withGps);
+      App.toast(`📍 ${withGps.length} ${commonName} pin${withGps.length === 1 ? '' : 's'} highlighted`);
+    }, 150);
+  }
+
+  return { init, refreshIfVisible, reloadBoundaries, flyToZone, flyToObs, flyToCoords, flyToSpecies };
 })();
