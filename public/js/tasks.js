@@ -343,23 +343,18 @@ var Tasks = (() => {
 
     if (gpsBtn) gpsBtn.addEventListener('click', () => {
       if (!gpsStatus) return;
-      gpsStatus.textContent = '📍 Locating…'; gpsStatus.className = 'gps-status';
-      if (!navigator.geolocation) {
-        gpsStatus.textContent = 'GPS not available'; gpsStatus.className = 'gps-error';
-        return;
-      }
-      navigator.geolocation.getCurrentPosition(
-        pos => {
-          gpsCoords = { lat: pos.coords.latitude.toFixed(6), lng: pos.coords.longitude.toFixed(6) };
-          gpsStatus.textContent = `✓ ${gpsCoords.lat}, ${gpsCoords.lng}`;
-          gpsStatus.className = 'gps-status';
-        },
-        () => {
-          gpsCoords = null;
-          gpsStatus.textContent = 'GPS unavailable'; gpsStatus.className = 'gps-error';
-        },
-        { enableHighAccuracy: true, timeout: 10000 }
-      );
+      gpsStatus.textContent = '📍 Locating (satellite lock can take up to 12s)…'; gpsStatus.className = 'gps-status';
+      App.captureGPS().then(fix => {
+        gpsCoords = { lat: fix.lat, lng: fix.lng };
+        const weak = fix.accuracy != null && fix.accuracy > App.GPS_ACCURACY_GOOD_M;
+        gpsStatus.textContent = weak
+          ? `✓ ${fix.lat}, ${fix.lng} (±${Math.round(fix.accuracy)}m — weak signal, consider retrying)`
+          : `✓ ${fix.lat}, ${fix.lng}`;
+        gpsStatus.className = weak ? 'gps-error' : 'gps-status';
+      }).catch(err => {
+        gpsCoords = null;
+        gpsStatus.textContent = err.message; gpsStatus.className = 'gps-error';
+      });
     });
 
     if (searchInput && datalist) {
@@ -407,7 +402,7 @@ var Tasks = (() => {
           <h3 style="font-size:16px">Add Task</h3>
           <button id="ats-close" style="background:none;border:none;font-size:24px;cursor:pointer;color:var(--muted)">✕</button>
         </div>
-        ${alreadyLinked ? `<div style="font-size:11px;background:#f0f4f0;color:var(--green);border-radius:6px;padding:5px 9px;margin-bottom:10px">🔗 Linked to: <strong>${esc(prefill.observation_name)}</strong></div>` : ''}
+        ${alreadyLinked ? `<div style="font-size:11px;background:#f0f4f0;color:var(--green);border-radius:6px;padding:5px 9px;margin-bottom:10px">🔗 Linked to: <strong>${esc(prefill.observation_name)}</strong>${(prefill.lat && prefill.lng) ? ` · 📍 ${esc(prefill.lat)}, ${esc(prefill.lng)}` : ' · <span style="color:var(--red)">⚠️ no GPS on this observation</span>'}</div>` : ''}
         <div class="field">
           <label class="lbl">Task description</label>
           <input type="text" id="ats-text" value="${esc(prefill.text || '')}" placeholder="What needs to be done?" style="width:100%">
@@ -457,7 +452,7 @@ var Tasks = (() => {
 
       let obsId = prefill.observation_id || null;
       let obsName = prefill.observation_name || null;
-      let lat = null, lng = null, noLocation = false;
+      let lat = prefill.lat || null, lng = prefill.lng || null, noLocation = false;
       if (link) {
         const state = link.getState();
         obsId = state.observation_id;
@@ -810,16 +805,23 @@ var Tasks = (() => {
   function taskItemHTML(task) {
     if (_editingId === task.id) return taskEditHTML(task);
     const done = task.completed;
-    const hasObs = !!task.observation_name;
+    // A "linked" plant reference is only useful if it can actually resolve to something —
+    // an observation_name with no id and no coordinates is a leftover label with nothing
+    // behind it (some older AI-authored tasks are like this) and must not render as if
+    // it were clickable.
+    const hasObsId = !!(task.observation_name && task.observation_id);
     const hasGps = !!(task.lat && task.lng);
-    const obsLink = hasObs
-      ? `<div class="task-obs-link" data-fly-obs="${task.observation_id || ''}" style="font-size:10px;color:var(--green);margin-top:1px;cursor:pointer;display:inline-flex;align-items:center;gap:3px">🔗 ${esc(task.observation_name)} <span style="opacity:0.6;font-size:9px">📍</span></div>`
+    const nameOnly = !!task.observation_name && !hasObsId && !hasGps;
+    const obsLink = hasObsId
+      ? `<div class="task-obs-link" data-fly-obs="${task.observation_id}" style="font-size:10px;color:var(--green);margin-top:1px;cursor:pointer;display:inline-flex;align-items:center;gap:3px">🔗 ${esc(task.observation_name)} <span style="opacity:0.6;font-size:9px">📍</span></div>`
       : (hasGps
-        ? `<div class="task-obs-link" data-fly-coords="${esc(task.lat)},${esc(task.lng)}" style="font-size:10px;color:var(--green);margin-top:1px;cursor:pointer;display:inline-flex;align-items:center;gap:3px">📍 ${esc(task.lat)}, ${esc(task.lng)}</div>`
-        : '');
+        ? `<div class="task-obs-link" data-fly-coords="${esc(task.lat)},${esc(task.lng)}" style="font-size:10px;color:var(--green);margin-top:1px;cursor:pointer;display:inline-flex;align-items:center;gap:3px">📍 ${task.observation_name ? esc(task.observation_name) + ' · ' : ''}${esc(task.lat)}, ${esc(task.lng)}</div>`
+        : (nameOnly
+          ? `<span style="font-size:10px;color:var(--muted);margin-top:1px;display:inline-flex;align-items:center;gap:3px" title="No plant record or GPS was ever saved for this task">${esc(task.observation_name)} <span style="opacity:0.7">(no location saved)</span></span>`
+          : ''));
     // Seeded checklist items (no created_at/lat/lng, no observation) predate this requirement
     // and are intentionally general — only flag tasks added after that had no location option offered.
-    const unlinkedBadge = (!hasObs && !hasGps && !task.no_location && task.created_at)
+    const unlinkedBadge = (!hasObsId && !hasGps && !task.no_location && task.created_at)
       ? `<span style="font-size:9px;color:var(--red);border:1px solid var(--red);border-radius:4px;padding:1px 4px;margin-left:4px" title="No linked plant or GPS location">⚠️ unlinked</span>`
       : '';
     const dateLabel = task.created_at

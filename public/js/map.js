@@ -354,6 +354,8 @@ var PropertyMap = (() => {
             observation_name: name + (zone ? ' · Zone ' + zone : ''),
             zone,
             text:             (obs && obs.action_needed) ? obs.action_needed : '',
+            lat:              obs ? obs.lat : null,
+            lng:              obs ? obs.lng : null,
           });
         }
       });
@@ -1230,6 +1232,8 @@ var PropertyMap = (() => {
         } else {
           App.toast(`${obs.common_name} has no GPS pin`);
         }
+      } else {
+        App.toast('Could not find this observation — it may not be linked correctly');
       }
     }, 150);
   }

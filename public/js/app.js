@@ -1,8 +1,8 @@
 /* app.js — Field Companion core: routing, data loading, IndexedDB, toast, offline */
 
-const APP_BUILD = '2026-08-18-b';   // bump this letter each deploy for version tracking
+const APP_BUILD = '2026-08-19-a';   // bump this letter each deploy for version tracking
 
-const App = (() => {
+var App = (() => {
   let _zones = [];
   let _tasks = {};
   let _driveLinks = {};
@@ -27,6 +27,52 @@ const App = (() => {
   }
 
   function getDB() { return _db; }
+
+  /* ── GPS capture ──
+     Browsers/OSes have no "satellite only" flag — enableHighAccuracy is just a hint,
+     and Android's fused location provider can still hand back a fast Wi-Fi/cell fix
+     instead of waiting for a real GPS lock. coords.accuracy (meters) is the only
+     signal we get to tell the difference: real GPS fixes report ~3-20m, Wi-Fi/cell
+     fixes report 50m-several km. So instead of accepting whatever arrives first, we
+     sample fixes for a few seconds via watchPosition and keep the best one, and
+     refuse to hand back anything worse than GPS_ACCURACY_MAX_M — callers should
+     treat a rejection as "no usable location" and offer the manual map picker
+     rather than silently saving a bad coordinate. */
+  const GPS_ACCURACY_GOOD_M   = 30;   // at/under this, stop sampling early — clearly a real fix
+  const GPS_ACCURACY_MAX_M    = 100;  // above this, refuse the fix entirely
+  const GPS_SAMPLE_WINDOW_MS  = 12000;
+
+  function captureGPS() {
+    return new Promise((resolve, reject) => {
+      if (!navigator.geolocation) { reject(new Error('GPS not available on this device')); return; }
+      let best = null;
+      let watchId = null;
+      const finish = () => {
+        if (watchId !== null) navigator.geolocation.clearWatch(watchId);
+        if (best && best.accuracy <= GPS_ACCURACY_MAX_M) {
+          resolve(best);
+        } else if (best) {
+          reject(new Error(`GPS signal too weak (±${Math.round(best.accuracy)}m) — move to open sky and retry, or use the map to set the location`));
+        } else {
+          reject(new Error('Could not get a GPS fix — move to open sky and retry, or use the map to set the location'));
+        }
+      };
+      const timer = setTimeout(finish, GPS_SAMPLE_WINDOW_MS);
+      watchId = navigator.geolocation.watchPosition(
+        pos => {
+          const fix = {
+            lat: pos.coords.latitude.toFixed(6),
+            lng: pos.coords.longitude.toFixed(6),
+            accuracy: pos.coords.accuracy,
+          };
+          if (!best || fix.accuracy < best.accuracy) best = fix;
+          if (fix.accuracy <= GPS_ACCURACY_GOOD_M) { clearTimeout(timer); finish(); }
+        },
+        () => { /* individual sample errors are ignored — finish() on timeout decides */ },
+        { enableHighAccuracy: true, maximumAge: 0, timeout: GPS_SAMPLE_WINDOW_MS }
+      );
+    });
+  }
 
   function saveObservation(obs) {
     if (!_db) return Promise.reject(new Error('Database not ready'));
@@ -536,6 +582,7 @@ const App = (() => {
     todayISO, formatDate,
     obsToCSVRow, obsArrayToCSV, copyToClipboard, downloadCSV,
     openSettings, closeSettings,
+    captureGPS, GPS_ACCURACY_GOOD_M, GPS_ACCURACY_MAX_M,
   };
 })();
 

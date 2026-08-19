@@ -67,15 +67,26 @@ var Sync = (() => {
 
       if (remote.length === 0) { setStatus('Up to date'); return; }
 
-      // Upsert each remote observation into local IndexedDB
-      // We don't want duplicates — check by (date, zone, common_name) or cloud_id
-      const local  = await App.getAllObservations();
-      const localKeys = new Set(local.map(o => `${o.date}|${o.zone}|${(o.common_name||'').toLowerCase()}`));
+      // Upsert each remote observation into local IndexedDB.
+      // Primary identity check is cloud_id (exact match — this device already has this
+      // exact record). Only local-only records (never synced, no cloud_id yet) fall back
+      // to a fuzzy (date, zone, name, coordinates) key. Coordinates are part of that key
+      // specifically so two different physical plants of the same species logged the same
+      // day in the same zone don't get collapsed into one and silently lose a location.
+      const local = await App.getAllObservations();
+      const localCloudIds = new Set(local.filter(o => o.cloud_id).map(o => o.cloud_id));
+      const mergeKey = o => {
+        const lat = o.lat ? parseFloat(o.lat).toFixed(5) : '';
+        const lng = o.lng ? parseFloat(o.lng).toFixed(5) : '';
+        return `${o.date}|${o.zone}|${(o.common_name||'').toLowerCase()}|${lat}|${lng}`;
+      };
+      const localKeys = new Set(local.map(mergeKey));
 
       let added = 0;
       for (const rObs of remote) {
-        const key = `${rObs.date}|${rObs.zone}|${(rObs.common_name||'').toLowerCase()}`;
-        if (localKeys.has(key)) continue; // already have it
+        if (localCloudIds.has(rObs.id)) continue; // already synced to this device
+        const key = mergeKey(rObs);
+        if (localKeys.has(key)) continue; // same plant, same day, same spot — already have it
 
         // Map cloud observation to local schema
         const obs = {
@@ -97,6 +108,7 @@ var Sync = (() => {
         try {
           await App.saveObservation(obs);
           localKeys.add(key);
+          localCloudIds.add(rObs.id);
           added++;
         } catch(e) { /* skip */ }
       }

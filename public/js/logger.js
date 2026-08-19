@@ -138,7 +138,13 @@ var Logger = (() => {
   function setGPSCoords(coords) {
     _gpsCoords = coords;
     const status = $('log-gps-status');
-    if (status) { status.textContent = `✓ ${coords.lat}, ${coords.lng}`; status.className = 'gps-status'; }
+    if (status) {
+      const weak = coords.accuracy != null && coords.accuracy > App.GPS_ACCURACY_GOOD_M;
+      status.textContent = weak
+        ? `✓ ${coords.lat}, ${coords.lng} (±${Math.round(coords.accuracy)}m — weak signal, consider retrying)`
+        : `✓ ${coords.lat}, ${coords.lng}`;
+      status.className = weak ? 'gps-error' : 'gps-status';
+    }
     const fallback = $('log-gps-fallback');
     if (fallback) fallback.style.display = 'none';
     const refine = $('log-gps-refine');
@@ -149,24 +155,15 @@ var Logger = (() => {
     const status   = $('log-gps-status');
     const fallback = $('log-gps-fallback');
     const refine   = $('log-gps-refine');
-    if (status)   { status.textContent = '📍 Locating...'; status.className = 'gps-status'; }
+    if (status)   { status.textContent = '📍 Locating (satellite lock can take up to 12s)…'; status.className = 'gps-status'; }
     if (fallback) fallback.style.display = 'none';
     if (refine)   refine.style.display   = 'none';
 
-    if (!navigator.geolocation) {
-      if (status)   { status.textContent = 'GPS not available'; status.className = 'gps-error'; }
+    App.captureGPS().then(setGPSCoords).catch(err => {
+      _gpsCoords = null;
+      if (status)   { status.textContent = err.message; status.className = 'gps-error'; }
       if (fallback) fallback.style.display = 'block';
-      return;
-    }
-    navigator.geolocation.getCurrentPosition(
-      pos => setGPSCoords({ lat: pos.coords.latitude.toFixed(6), lng: pos.coords.longitude.toFixed(6) }),
-      () => {
-        _gpsCoords = null;
-        if (status)   { status.textContent = 'GPS unavailable'; status.className = 'gps-error'; }
-        if (fallback) fallback.style.display = 'block';
-      },
-      { enableHighAccuracy: true, timeout: 10000 }
-    );
+    });
   }
 
   /* ── Save ── */
@@ -483,6 +480,8 @@ var Logger = (() => {
           observation_name: obs.common_name + (obs.zone ? ' · Zone ' + obs.zone : ''),
           zone:             obs.zone || '',
           text:             obs.action_needed || '',
+          lat:              obs.lat,
+          lng:              obs.lng,
         });
       }
     });

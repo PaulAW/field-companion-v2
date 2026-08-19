@@ -13,6 +13,8 @@ var PlantID = (() => {
   let _selectedOrgan        = null; // organ type for primary photo
   let _lastPrevConfidence   = null; // confidence before the most recent re-identify, for delta display
   let _savedObsId           = null; // local observation id once this result has been saved (or auto-saved for a task link)
+  let _savedObsLat          = null;
+  let _savedObsLng          = null;
 
   const SESSION_KEY = 'fc_pid_session';
 
@@ -301,7 +303,13 @@ var PlantID = (() => {
   function setGPSCoords(coords) {
     _gpsCoords = coords;
     const status = $('pid-gps-status');
-    if (status) { status.textContent = `✓ ${coords.lat}, ${coords.lng}`; status.className = 'gps-status'; }
+    if (status) {
+      const weak = coords.accuracy != null && coords.accuracy > App.GPS_ACCURACY_GOOD_M;
+      status.textContent = weak
+        ? `✓ ${coords.lat}, ${coords.lng} (±${Math.round(coords.accuracy)}m — weak signal, consider retrying)`
+        : `✓ ${coords.lat}, ${coords.lng}`;
+      status.className = weak ? 'gps-error' : 'gps-status';
+    }
     const fallback = $('pid-gps-fallback');
     if (fallback) fallback.style.display = 'none';
     const refine = $('pid-gps-refine');
@@ -311,29 +319,17 @@ var PlantID = (() => {
 
   function captureGPS() {
     const status = $('pid-gps-status');
-    if (status) { status.textContent = '📍 Locating...'; status.className = 'gps-status'; }
+    if (status) { status.textContent = '📍 Locating (satellite lock can take up to 12s)…'; status.className = 'gps-status'; }
     const fallback = $('pid-gps-fallback');
     const refine   = $('pid-gps-refine');
     if (fallback) fallback.style.display = 'none';
     if (refine)   refine.style.display   = 'none';
 
-    if (!navigator.geolocation) {
-      if (status) { status.textContent = 'GPS not available'; status.className = 'gps-error'; }
+    App.captureGPS().then(setGPSCoords).catch(err => {
+      _gpsCoords = null;
+      if (status) { status.textContent = err.message; status.className = 'gps-error'; }
       if (fallback) fallback.style.display = 'block';
-      return;
-    }
-    navigator.geolocation.getCurrentPosition(
-      pos => setGPSCoords({
-        lat: pos.coords.latitude.toFixed(6),
-        lng: pos.coords.longitude.toFixed(6),
-      }),
-      () => {
-        _gpsCoords = null;
-        if (status) { status.textContent = 'GPS unavailable'; status.className = 'gps-error'; }
-        if (fallback) fallback.style.display = 'block';
-      },
-      { enableHighAccuracy: true, timeout: 10000 }
-    );
+    });
   }
 
   /* ── Identify button ── */
@@ -381,6 +377,8 @@ var PlantID = (() => {
     _plantNetCandidates   = null;
     _lastPrevConfidence   = null;
     _savedObsId           = null;
+    _savedObsLat          = null;
+    _savedObsLng          = null;
     resetOrganSelect();
     clearPersistedSession();
     showIdentifyControls();
@@ -885,6 +883,8 @@ var PlantID = (() => {
           urgent:            result.recommended_action === 'REMOVE',
           observation_id:    obs.id,
           observation_name:  obs.name,
+          lat:               obs.lat,
+          lng:               obs.lng,
         });
       });
     }
@@ -897,6 +897,8 @@ var PlantID = (() => {
           zone:              zone || '',
           observation_id:    obs.id,
           observation_name:  obs.name,
+          lat:               obs.lat,
+          lng:               obs.lng,
         });
       });
     }
@@ -1058,6 +1060,8 @@ var PlantID = (() => {
         observation_id: obs.id,
         observation_name: obs.name,
         text: result.action_detail || '',
+        lat: obs.lat,
+        lng: obs.lng,
       });
     });
     const lcActions = container.querySelector('[id="pid-low-conf-new-plant"]');
@@ -1143,11 +1147,13 @@ var PlantID = (() => {
       confidence:       result.confidence || null,
     };
     const localId = await App.saveObservation(obs);
-    _savedObsId = localId;
+    _savedObsId  = localId;
+    _savedObsLat = obs.lat || null;
+    _savedObsLng = obs.lng || null;
     const btn = $('pid-save-obs');
     if (btn) { btn.textContent = '✓ Saved'; btn.disabled = true; }
     clearPersistedSession();
-    return { id: localId, name: obs.common_name + (obs.zone ? ' · Zone ' + obs.zone : '') };
+    return { id: localId, name: obs.common_name + (obs.zone ? ' · Zone ' + obs.zone : ''), lat: _savedObsLat, lng: _savedObsLng };
   }
 
   async function saveObservation(result, zone, notes, csvRow) {
@@ -1166,7 +1172,7 @@ var PlantID = (() => {
     if (_savedObsId) {
       const log = result.log_entry || {};
       const commonName = result.common_name || log.common_name || '';
-      return { id: _savedObsId, name: commonName + (zone ? ' · Zone ' + zone : '') };
+      return { id: _savedObsId, name: commonName + (zone ? ' · Zone ' + zone : ''), lat: _savedObsLat, lng: _savedObsLng };
     }
     try {
       return await doSaveObservation(result, zone, notes);
